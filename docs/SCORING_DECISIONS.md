@@ -210,12 +210,18 @@ drifts from the approved guardrails list.
 
 ## A-3 — Match classification thresholds
 
+> **Resolved on 2026-09-25 by P-2 in the owner-decision record below.** The text that
+> follows is retained as historical context describing the Phase 1A position.
+
 `UNRESOLVED`. No score cutoffs are invented and no classification behaviour is implemented.
 Structural configuration parsing succeeds; readiness validation for full assessment execution
 fails with a clear error naming the unresolved key. Package import and CLI help remain
 functional.
 
 ## A-4 — Evidence-tier weighting
+
+> **Resolved on 2026-09-25 by P-1 in the owner-decision record below.** The text that
+> follows is retained as historical context describing the Phase 1A position.
 
 `UNRESOLVED`. No numeric tier weights are invented and no scoring behaviour is implemented. The
 `EvidenceTier` enum exists and the tier field is required on technology-match domain models.
@@ -224,7 +230,180 @@ weights are approved.
 
 ## Unresolved policy keys as of this record
 
-| Key | Location | Gate |
-|---|---|---|
-| `match_classification_thresholds` | `config/scoring.yaml` | A-3 |
-| `evidence_tier_weighting` | `config/scoring.yaml` | A-4 |
+> **Superseded on 2026-09-25 by the owner-decision record below.** Both keys
+> listed here are now resolved (P-1 and P-2). The active gate is the eight-key set in
+> "Unresolved policy keys" within that record. This table is retained as historical
+> context and no longer governs readiness validation.
+
+| Key | Location | Gate | Status |
+|---|---|---|---|
+| `match_classification_thresholds` | `config/scoring.yaml` | A-3 | Resolved by P-2 |
+| `evidence_tier_weighting` | `config/scoring.yaml` | A-4 | Resolved by P-1 |
+
+---
+
+# Owner-Decision Record — Scoring Policy P-1 through P-6
+
+**Status:** approved
+**Date:** 2026-09-25
+**Owner:** Anthony Grant
+
+## Standing of this record
+
+This record resolves the prior **A-3** (`match_classification_thresholds`) and **A-4**
+(`evidence_tier_weighting`) policy decisions, and adds **P-3 through P-6**.
+
+It **does not supersede or modify any canonical Markdown file.** `PROJECT_GUARDRAILS.md`,
+`PROMPT_PHASE_0.md`, `README.md`, `JOB_CAPTURE_TEMPLATE.md`, `CONTEXT_UPDATE_PROTOCOL.md`,
+`CANONICAL_CANDIDATE_DOSSIER.md`, `CANONICAL_BADGR_BUSINESS_CONTEXT.md`, and
+`CANONICAL_CONFLICTS_AND_UNKNOWNS.md` are unchanged.
+No canonical Markdown source is changed or superseded by this record.
+Future canonical reconciliation requires a separate approved patch under
+`CONTEXT_UPDATE_PROTOCOL.md`.
+
+This record is the **active implementation authority** for P-1 through P-6 and for the
+unresolved-key gate. The Phase 1A standing section earlier in this file is retained as
+historical context; it is labelled superseded only where this record explicitly governs.
+
+Resolving A-3 and A-4 **does not unblock assessment implementation.** Eight new policy keys
+now gate readiness (see "Unresolved policy keys" below). No scoring, blocker detection,
+classification, report rendering, ingestion, persistence, or external behaviour may be
+implemented or executed while any of those keys remains unresolved.
+
+## P-1 — Evidence-tier weighting (resolves A-4)
+
+### Approved evidence-tier multipliers
+
+- TIER_1_VERIFIED_SKILL: 1.00
+- TIER_2_PROJECT_EVIDENCE: 0.70
+- TIER_3_EMPLOYMENT_EVIDENCE: 0.90
+- TIER_4_TRAINING: 0.30
+
+Rules E-1 through E-8, adopted in full:
+
+- **E-1** Multipliers apply only within `verified_technical_skill_alignment`, capped at 20 points.
+- **E-2** No double counting between technology credit and
+  `responsibility_and_project_evidence_alignment`, which scores responsibilities, scope, and
+  outcomes rather than technology tokens.
+- **E-3** Best tier wins. A technology scores once, at its strongest approved evidence tier.
+- **E-4** No evidence gives zero technology credit, plus `REQUIRED_SKILL_GAP` when the listing
+  marks the technology required.
+- **E-5** Every technology match must disclose its evidence tier and its exact supporting
+  evidence reference.
+- **E-6** A Tier 3 match can never satisfy a prohibited-inference requirement.
+- **E-7** A required technology supported only by Tier 2 or Tier 4 raises `REQUIRED_SKILL_GAP`.
+- **E-8** Tier ordinal does not imply weight order. Tier 3 outranks Tier 2 under this policy.
+
+## P-2 — Match classification thresholds (resolves A-3)
+
+### Approved classification thresholds
+
+- STRONG_MATCH: 72-100
+- PLAUSIBLE_MATCH: 58-71
+- STRETCH: 42-57
+- AVOID: 0-41
+
+Applied globally to all role families initially. `INSUFFICIENT_EVIDENCE` has no score band; it
+is reachable only through rule C-4.
+
+Rules C-1 through C-6, adopted in full:
+
+- **C-1** Any hard blocker forces `DO_NOT_APPLY` regardless of score.
+- **C-2** Unknown dimensions score zero and remain in the denominator.
+- **C-3** Missing evidence alone never produces `AVOID` or `DO_NOT_APPLY`.
+- **C-4** Three or more critical unknowns — among compensation, work arrangement,
+  company/careers verification, education requirements, and required technologies — cap
+  classification at `INSUFFICIENT_EVIDENCE` regardless of score.
+- **C-5** Score is never a headline. It appears only after blockers, flags, unknowns, and the
+  per-dimension breakdown.
+- **C-6** Global thresholds are reconsidered only after 30-50 assessed listings and a
+  documented human calibration review.
+
+## P-3 — Seniority and documented-evidence compatibility (15 points)
+
+### Approved seniority point bands
+
+- 15: Intermediate / Engineer I-II / associate role; responsibilities strongly match documented evidence; no unsupported leadership or research scope.
+- 11: Mid-level role with one moderate gap, including stated 3+ years where actual scope remains practical and applied.
+- 7: Broad or unclear role, or multiple moderate evidence gaps.
+- 3: Explicit 5+ years or senior-style scope, without enough evidence to establish the hard blocker.
+- 0: Materially unsupported senior/staff/principal/lead/research scope; then evaluate the separate P-5 blocker.
+
+Binding prohibitions, restating D-4: never calculate total years of experience; never infer
+years from employment dates; never add aggregate years-of-experience to candidate models or
+reports.
+
+## P-4 — Compensation compatibility (10 points)
+
+### Approved compensation point mapping
+
+- TARGET_90K_PLUS: 10
+- BELOW_PREFERRED_REVIEW: 7
+- FALLBACK_80K_TO_85K: 5
+- CONTRACT_REQUIRES_REVIEW: 0
+- UNKNOWN: 0
+- BELOW_80K: 0
+
+`BELOW_PREFERRED_REVIEW` covers $86,000-$89,999 and `FALLBACK_80K_TO_85K` covers
+$80,000-$85,999. Contract and hourly compensation is never annualized and requires manual
+review. `UNKNOWN` additionally raises `MISSING_COMPENSATION`; a listing is never rejected
+solely because compensation is absent. `BELOW_80K` retains its existing hard blocker.
+
+## P-5 — SENIOR_SCOPE_MATERIALLY_UNSUPPORTED
+
+### Approved senior-scope firing conditions
+
+- requires_explicit_senior_scope: true
+- minimum_unsupported_requirements: 2
+- category: leadership_or_ownership
+- category: five_plus_years_required
+- category: mlops_cloud_or_platform_ownership
+- category: kubernetes_terraform_docker_core
+- category: research_training_or_publications
+- category: unsupported_scale_or_ownership_claims
+- category: clearance_or_independent_blocker
+
+The blocker fires only when both conditions hold: the role is explicitly Senior, Staff,
+Principal, Lead, Head, or equivalent senior scope; **and** it contains at least two materially
+unsupported requirements drawn from the categories above. A senior title alone remains a
+`SENIORITY_MISMATCH` concern, not an automatic hard blocker.
+
+### Cross-reference: P-3 and P-5 are not equivalent
+
+P-3's 0-point seniority band and P-5's hard blocker are not equivalent. A role may score 0 for
+seniority without firing a blocker, because the blocker additionally requires an explicit
+senior scope plus at least two enumerated materially unsupported requirements. No
+implementation may couple the two.
+
+## P-6 — Score display
+
+### Approved report display order
+
+1. Recommendation
+2. Hard blockers
+3. Validation status and risk flags
+4. Critical unknowns / missing evidence
+5. Match classification and score
+6. Per-dimension score breakdown
+7. Evidence-tier map with candidate-proof references
+8. Human next action
+
+The score must never appear alone in a report title, filename, alert label, sort label, or
+first sentence.
+
+## Unresolved policy keys
+
+These eight keys gate assessment readiness. Structural configuration loading succeeds; full
+readiness validation fails and lists every key below, in this order.
+
+1. technology_base_credit_allocation
+2. technology_matching_normalization
+3. required_vs_preferred_technology_handling
+4. seniority_band_selection_precedence
+5. compensation_range_selection_rule
+6. critical_unknown_detection_rule
+7. score_rounding_rule
+8. report_and_cli_score_display_scope
+
+No deterministic assessment behaviour may be added or executed while any key above remains
+unresolved. No value may be invented.

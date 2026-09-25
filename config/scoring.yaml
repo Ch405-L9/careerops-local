@@ -1,6 +1,7 @@
 # CareerOps Local - deterministic scoring policy.
-# Policy source: docs/SCORING_DECISIONS.md (owner-approved 2026-09-25).
-# Phase 1A ships this file as configuration only. No scoring logic is implemented.
+# Policy source: docs/SCORING_DECISIONS.md, owner-decision record dated 2026-09-25
+# (P-1 through P-6). That record is the active implementation authority.
+# No scoring, classification, blocker detection, or reporting logic is implemented.
 
 # Nine weighted dimensions. Must total exactly 100.
 # The 15-point dimension is named per owner decision D-4: total years of experience
@@ -16,11 +17,78 @@ weights:
   employer_listing_validation_quality: 4
   growth_learning_relevance: 3
 
-# A-3: score cutoffs separating STRONG_MATCH / PLAUSIBLE_MATCH / STRETCH / AVOID are not
-# approved. No cutoffs may be invented. Structural parsing succeeds; readiness validation
-# for full assessment execution fails until this is resolved by the owner.
-match_classification_thresholds: UNRESOLVED
+# P-1 (resolves A-4). Multipliers apply ONLY within verified_technical_skill_alignment
+# and are capped at that dimension's 20-point weight (rule E-1). Best tier wins (E-3).
+# Tier ordinal does not imply weight order: TIER_3 outranks TIER_2 (E-8).
+evidence_tier_weighting:
+  TIER_1_VERIFIED_SKILL: 1.00
+  TIER_2_PROJECT_EVIDENCE: 0.70
+  TIER_3_EMPLOYMENT_EVIDENCE: 0.90
+  TIER_4_TRAINING: 0.30
 
-# A-4: relative weighting of EvidenceTier 1-4 is not approved. No numeric tier weights may
-# be invented. Tier disclosure is mandatory; tier weighting is not yet decided.
-evidence_tier_weighting: UNRESOLVED
+# P-2 (resolves A-3). Global bands, inclusive on both ends, tiling 0-100.
+# INSUFFICIENT_EVIDENCE deliberately has no score band: it is reachable only through
+# the critical-unknown cap (rule C-4), never by score.
+match_classification_thresholds:
+  bands:
+    - classification: STRONG_MATCH
+      min_score: 72
+      max_score: 100
+    - classification: PLAUSIBLE_MATCH
+      min_score: 58
+      max_score: 71
+    - classification: STRETCH
+      min_score: 42
+      max_score: 57
+    - classification: AVOID
+      min_score: 0
+      max_score: 41
+
+# P-3. Seniority and documented-evidence compatibility, 15 points.
+# Total years of experience is never calculated and never inferred from job dates.
+seniority_bands:
+  bands:
+    - points: 15
+      description: >-
+        Intermediate / Engineer I-II / associate role; responsibilities strongly match
+        documented evidence; no unsupported leadership or research scope.
+    - points: 11
+      description: >-
+        Mid-level role with one moderate gap, including a stated 3+ years requirement
+        where the actual scope remains practical and applied.
+    - points: 7
+      description: Broad or unclear role, or multiple moderate evidence gaps.
+    - points: 3
+      description: >-
+        Explicit 5+ years or senior-style scope, without enough evidence to establish
+        the hard blocker.
+    - points: 0
+      description: >-
+        Materially unsupported senior/staff/principal/lead/research scope; then evaluate
+        the separate P-5 blocker, which requires its own additional conditions.
+
+# P-6. Report section order. The score appears at position 5 and is never a headline.
+report_display:
+  order:
+    - Recommendation
+    - Hard blockers
+    - Validation status and risk flags
+    - Critical unknowns / missing evidence
+    - Match classification and score
+    - Per-dimension score breakdown
+    - Evidence-tier map with candidate-proof references
+    - Human next action
+  score_never_headline: true
+
+# Policy decisions required before any deterministic assessment behaviour may be
+# implemented or executed. Structural loading succeeds; readiness validation fails
+# while any value below is UNRESOLVED. No value may be invented.
+unresolved_policy:
+  technology_base_credit_allocation: UNRESOLVED
+  technology_matching_normalization: UNRESOLVED
+  required_vs_preferred_technology_handling: UNRESOLVED
+  seniority_band_selection_precedence: UNRESOLVED
+  compensation_range_selection_rule: UNRESOLVED
+  critical_unknown_detection_rule: UNRESOLVED
+  score_rounding_rule: UNRESOLVED
+  report_and_cli_score_display_scope: UNRESOLVED
