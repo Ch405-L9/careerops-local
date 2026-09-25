@@ -1,0 +1,48 @@
+# CareerOps Local - compensation policy (owner decision D-3, A-2).
+# Bands use an inclusive lower bound and an exclusive upper bound, in USD base salary.
+# They must tile the whole range with no gap and no overlap.
+# Phase 1A ships this as configuration only. No compensation scoring is implemented.
+
+currency: USD
+
+bands:
+  - classification: BELOW_80K
+    min_usd: null
+    max_usd: 80000
+    hard_blocker: true
+    report_note: >-
+      Explicit base salary below the 80,000 exclusion floor. Hard blocker. No override
+      mechanism exists; an override is deferred to a later, separately approved phase (D-10).
+
+  - classification: FALLBACK_80K_TO_85K
+    min_usd: 80000
+    max_usd: 86000
+    hard_blocker: false
+    report_note: >-
+      Within the documented fallback band of 80,000 to 85,999. Acceptable when the role is
+      substantively valuable.
+
+  - classification: BELOW_PREFERRED_REVIEW
+    min_usd: 86000
+    max_usd: 90000
+    hard_blocker: false
+    report_note: >-
+      Below Anthony's preferred 90,000 base target but above the 80,000 exclusion floor. Not a
+      hard blocker and not a salary conflict. No risk flag is raised for this band.
+
+  - classification: TARGET_90K_PLUS
+    min_usd: 90000
+    max_usd: null
+    hard_blocker: false
+    report_note: >-
+      At or above the preferred 90,000 base target.
+
+# Hourly and contract compensation is never annualized and never equated to salary.
+contract_handling: >-
+  Classify as CONTRACT_REQUIRES_REVIEW. Never annualize an hourly rate and never treat
+  contract compensation as equivalent to salaried compensation. Evaluate separately.
+
+# Absent compensation is missing evidence, not negative evidence.
+unknown_handling: >-
+  Classify as UNKNOWN and raise MISSING_COMPENSATION. Never reject a listing solely because
+  compensation is absent.

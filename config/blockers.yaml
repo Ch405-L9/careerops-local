@@ -1,0 +1,38 @@
+# CareerOps Local - hard blocker policy (owner decisions D-5, D-6, D-8, D-10).
+# Phase 1A ships this as configuration only. No blocker logic is implemented.
+#
+# Deliberately absent: any salary-override key. An override for explicit base salary below
+# 80,000 is deferred to a later, separately approved phase (D-10).
+
+# D-8: owner-reviewable degree-equivalency phrase list. Matching is case-insensitive when
+# implemented. An explicit mandatory degree with none of these phrases is a hard blocker;
+# with any of these phrases it is not. Ambiguous wording yields INSUFFICIENT_EVIDENCE.
+degree_equivalency_phrases:
+  - or equivalent experience
+  - or equivalent practical experience
+  - or equivalent professional experience
+  - or equivalent work experience
+  - or related experience
+  - equivalent combination of education and experience
+  - education or equivalent experience
+  - degree preferred
+  - bachelor's preferred
+  - or demonstrable experience
+
+# The complete hard blocker set. Work authorization is deliberately NOT a blocker (D-5), and
+# plain absence of company evidence is deliberately NOT a blocker (D-6).
+blockers:
+  - code: CLEARANCE_REQUIRED_WITHOUT_CANDIDATE_EVIDENCE
+    enabled: true
+  - code: MANDATORY_DEGREE_WITHOUT_EQUIVALENCY
+    enabled: true
+  - code: EXPLICIT_BASE_SALARY_BELOW_80K
+    enabled: true
+  - code: RESEARCH_HEAVY_UNVERIFIED_QUALIFICATIONS
+    enabled: true
+  - code: SENIOR_SCOPE_MATERIALLY_UNSUPPORTED
+    enabled: true
+  - code: PAYMENT_OR_IDENTITY_REQUEST
+    enabled: true
+  - code: AFFIRMATIVE_COMPANY_IDENTITY_CONTRADICTION
+    enabled: true

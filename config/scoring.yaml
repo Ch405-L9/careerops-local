@@ -1,0 +1,26 @@
+# CareerOps Local - deterministic scoring policy.
+# Policy source: docs/SCORING_DECISIONS.md (owner-approved 2026-09-25).
+# Phase 1A ships this file as configuration only. No scoring logic is implemented.
+
+# Nine weighted dimensions. Must total exactly 100.
+# The 15-point dimension is named per owner decision D-4: total years of experience
+# is never calculated and never inferred from job dates.
+weights:
+  role_family_relevance: 20
+  verified_technical_skill_alignment: 20
+  responsibility_and_project_evidence_alignment: 15
+  seniority_and_documented_evidence_compatibility: 15
+  compensation_compatibility: 10
+  location_remote_relocation_compatibility: 8
+  employment_type_compatibility: 5
+  employer_listing_validation_quality: 4
+  growth_learning_relevance: 3
+
+# A-3: score cutoffs separating STRONG_MATCH / PLAUSIBLE_MATCH / STRETCH / AVOID are not
+# approved. No cutoffs may be invented. Structural parsing succeeds; readiness validation
+# for full assessment execution fails until this is resolved by the owner.
+match_classification_thresholds: UNRESOLVED
+
+# A-4: relative weighting of EvidenceTier 1-4 is not approved. No numeric tier weights may
+# be invented. Tier disclosure is mandatory; tier weighting is not yet decided.
+evidence_tier_weighting: UNRESOLVED
