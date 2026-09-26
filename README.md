@@ -2,6 +2,14 @@
 
 This pack is a safe, local-first project brief for building **CareerOps Local**: an evidence-based job and contract intelligence assistant for Anthony Grant, with a future optional business-opportunity mode for BADGRTechnologies LLC.
 
+## Current state
+
+This repository is now an implemented package, not only a brief. The sections below are retained as project origin.
+
+Version 0.2.0a0. One of nine scoring dimensions is implemented; a total match score is deliberately unavailable, and readiness validation still refuses on five unresolved policy keys. See `CHANGELOG.md` for what each release changed and `docs/ARCHITECTURE.md` for the layering, design invariants, and known representational limits.
+
+Run the test suite with `python -m pytest`.
+
 ## Start here
 
 1. Create and enter a new repository:
@@ -20,7 +28,7 @@ This pack is a safe, local-first project brief for building **CareerOps Local**:
 - `PROMPT_PHASE_0.md` — paste-first instruction for Claude Code.
 - `CANONICAL_CANDIDATE_DOSSIER.md` — approved personal/career facts for matching.
 - `CANONICAL_BADGR_BUSINESS_CONTEXT.md` — sanitized, non-secret BADGR context for the future business mode and visual identity.
-- `CANONICAL_CONFLICTS_AND_UNKNOWNs.md` — known contradictions and facts requiring confirmation.
+- `CANONICAL_CONFLICTS_AND_UNKNOWNS.md` — known contradictions and facts requiring confirmation.
 - `CONTEXT_UPDATE_PROTOCOL.md` — canonical, human-approved change process and prompt.
 - `JOB_CAPTURE_TEMPLATE.md` — permitted manual Wellfound job-capture template.
 - `PROJECT_GUARDRAILS.md` — scope, privacy, security, and platform-compliance boundaries.
