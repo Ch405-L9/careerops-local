@@ -183,10 +183,18 @@ Where a compound must nonetheless be matchable, the owner declares its terms exp
 required entry counts as one slot. A grouped requirement such as "X, Y, or equivalent" is
 approved policy as one slot, but cannot yet be expressed as input.
 
-**Capture text is not parsed.** No importer exists. Required technologies enter one per line,
-and normalization applies only the four approved steps, so a pasted line retaining a bullet, a
-trailing comma, or a stray character will not match. The runner prints such phrases with
-`repr()` so the artifact is visible rather than mysterious.
+**Capture import is strict, and refuses rather than guesses.** `careerops.ingest.capture` parses
+an approved capture by labelled field, never by position. Absent values become `UNKNOWN`; a
+malformed salary or an unrecognized enum value raises instead of degrading to `UNKNOWN`, because
+a fallback would turn a typo into silent data loss. Required technologies are read one per line,
+and normalization applies only the four approved steps, so a line retaining a bullet or a
+trailing comma will not match. The runner prints such phrases with `repr()` so the artifact is
+visible rather than mysterious.
+
+The capture reaches the tool on standard input, so no path is accepted and no local captures
+directory is created — which a compliance test requires to remain absent. Layer 1 ingestion and
+layer 2 normalization therefore exist for the capture format only; no platform adapter, no fetch,
+and no persistence accompanies them.
 
 **Six dimensions have no allocation rule.** `role_family_relevance`,
 `responsibility_and_project_evidence_alignment`, `location_remote_relocation_compatibility`,

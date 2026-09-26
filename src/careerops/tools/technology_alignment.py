@@ -26,6 +26,7 @@ import sys
 
 from careerops.assess.scoring import score_technology_alignment
 from careerops.config.loader import load_assessment_config
+from careerops.config.schema import REQUIRED_UNRESOLVED_POLICY_KEYS
 from careerops.domain.assessment import GAP_FLAG, TechnologyAlignmentResult
 from careerops.dossier.approved_dossier import candidate_terms
 from careerops.dossier.loader import ApprovedDossierLoader
@@ -148,7 +149,10 @@ def format_result(result: TechnologyAlignmentResult, source: str, version: str) 
         lines.append("  Every required technology is supported by disclosed evidence. The other")
         lines.append("  eight dimensions are not implemented, so no overall judgement follows.")
     lines.append("")
-    lines.append("Eight dimensions and five policy keys remain unresolved. No total score exists.")
+    lines.append(
+        f"Eight dimensions and {len(REQUIRED_UNRESOLVED_POLICY_KEYS)} policy keys remain "
+        "unresolved. No total score exists."
+    )
     return "\n".join(lines)
 
 

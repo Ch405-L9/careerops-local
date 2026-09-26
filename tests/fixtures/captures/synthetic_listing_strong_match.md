@@ -35,7 +35,8 @@ base_salary_max_usd: 130000
 education_requirements: "Bachelor's degree or equivalent experience."
 years_of_experience: "2+ years"
 required_technologies: |
-  Python, FastAPI
+  Python
+  FastAPI
 
 # Hiring and application
 

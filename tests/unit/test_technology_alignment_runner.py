@@ -120,7 +120,20 @@ def test_the_absence_of_a_total_score_is_stated_outright() -> None:
     """A reader must not have to infer that the number is partial."""
     text = _rendered(("Python",))
     assert "No total score exists." in text
-    assert "Eight dimensions and five policy keys remain unresolved." in text
+    assert "Eight dimensions" in text
+
+
+def test_the_printed_gate_size_tracks_the_constant() -> None:
+    """A hard-coded count went stale the moment the gate grew. It is now computed.
+
+    The footer said "five policy keys" after six allocation keys were added, making the output
+    quietly wrong. This test owns that drift.
+    """
+    from careerops.config.schema import REQUIRED_UNRESOLVED_POLICY_KEYS
+
+    text = _rendered(("Python",))
+    assert f"{len(REQUIRED_UNRESOLVED_POLICY_KEYS)} policy keys remain" in text
+    assert "five policy keys" not in text
 
 
 def test_points_are_displayed_unrounded() -> None:

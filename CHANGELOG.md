@@ -14,6 +14,24 @@ their decision identifiers. No release may invent a policy value.
 
 ### Added
 
+- **Capture importer** — `careerops.ingest.capture.parse_capture` turns an approved
+  `JOB_CAPTURE_TEMPLATE.md` capture into a `NormalizedJob`. Parsing is by labelled field, so no
+  line number and no field position is relied on (A-1): sections may be reordered and any
+  optional field omitted. Absent values become `UNKNOWN`. Text in, value out — no filesystem
+  read, no network call, no persistence.
+- **Nothing is guessed on import.** A malformed salary or an unrecognized enum value raises
+  `CaptureFormatError` naming the field and the permitted values, rather than falling back to
+  `UNKNOWN`, because a fallback turns a typo into silent data loss. Currency symbols, thousands
+  separators, and ranges are not interpreted.
+- **Contact data cannot survive import.** `public_recruiter_or_contact` has no destination field
+  by design (D-9) and is discarded, asserted by a test that puts an address in the capture and
+  proves it is absent from the model.
+- **`careerops.tools.capture_alignment`** — reads a complete capture from stdin and prints the
+  imported facts followed by the `verified_technical_skill_alignment` dimension. Imported facts
+  are labelled *disclosed, not scored*, because eight dimensions still have no allocation rule.
+  Work authorization and clearance are deliberately excluded from that display: they inform hard
+  blockers only, never a dimension score (D-5).
+
 - **Six dimension-allocation gate keys**, per the 2026-09-26 dimension-allocation record. The
   readiness gate rises from five keys to **eleven**, one for each dimension that holds an
   approved weight but no rule for turning facts into points: role family, responsibility and
@@ -42,6 +60,9 @@ their decision identifiers. No release may invent a policy value.
 
 ### Fixed
 
+- **Stale gate count in runner output.** The footer read "five policy keys remain unresolved"
+  after six allocation keys raised the gate to eleven, so the output was quietly wrong. It now
+  computes from `REQUIRED_UNRESOLVED_POLICY_KEYS`, with a test owning that drift.
 - **Gate-integrity hole.** `unresolved_policy` accepted any value, so writing "approved" or a
   typo over a key silently released it from the readiness gate. Only the exact `UNRESOLVED`
   sentinel is now accepted, and the rejection message states the correct resolution procedure.
