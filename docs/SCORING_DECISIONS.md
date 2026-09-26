@@ -786,3 +786,104 @@ Therefore, while any dimension is unevaluated:
 no `MatchClassification` is produced or displayed.
 A partial total may be reported only as a count of evaluable points, stating the ceiling. Thresholds are re-derived once the missing dimensions carry rules, consistent with rule
 C-6, which requires 30 to 50 assessed listings before reconsidering them.
+
+---
+
+# Owner-Decision Record — Technology Categories and Soft Salary Floor
+
+**Status:** approved
+**Date:** 2026-09-26
+**Owner:** Anthony Grant
+
+## Standing of this record (categories and soft floor)
+
+This record adds a technology-category lane and makes the salary floor soft. It changes no gate
+key and resolves none.
+
+It **does not supersede or modify any canonical Markdown file.** `PROJECT_GUARDRAILS.md`,
+`PROMPT_PHASE_0.md`, `JOB_CAPTURE_TEMPLATE.md`, `CONTEXT_UPDATE_PROTOCOL.md`,
+`CANONICAL_CANDIDATE_DOSSIER.md`, `CANONICAL_BADGR_BUSINESS_CONTEXT.md`, and
+`CANONICAL_CONFLICTS_AND_UNKNOWNS.md` are unchanged.
+
+It **does** amend two earlier decisions in this file, named explicitly below, because the
+configuration now contradicts them and a record that contradicts the running system is worse than
+no record.
+
+## Approved technology categories
+
+A-6 forbids aliasing an adjacent technology, a broader category, or a capability phrase to a
+target technology. That prohibition stands: no alias row may do any of those things, and an
+alias still means "the same technology under another name".
+
+Category substitution is a separate mechanism and is not an alias. One boolean governs it:
+
+- **substitutable** — operating one member transfers to another. An employee-facing CRM or
+  ticketing system exists to get customer information to someone who can act on it; having run
+  one, a person can run another. A requirement met by a peer earns **reduced** credit, and the
+  match records the tool actually held, never the one requested. The gap is raised as well, so
+  reduced credit can never be read as the requested tool.
+- **non-substitutable** — membership transfers nothing. General-purpose programming languages are
+  market-standard and not interchangeable: a language-specific role requires that language, and
+  it cannot be learned in time for the application. A peer earns nothing and raises
+  `CORE_LANGUAGE_GAP`, which is a stronger and more useful statement than mere absence.
+
+Approved credit, three values only: direct 1.00, substitute 0.50, none 0.00.
+
+Category membership is job-side recognition, not candidate evidence. Credit still requires the
+candidate to hold a member, recorded in the approved dossier, at a disclosed tier. Listing a
+product name in a category grants nothing.
+
+### Amendment to A-6
+
+A-6's forbidden-alias list is unchanged and remains binding for aliases. Substitution is added
+alongside it as a distinct match method, `CATEGORY_SUBSTITUTE`, which earns partial credit and
+always discloses both the substitution and the gap. It never claims the requested technology and
+never suppresses a gap.
+
+## Approved soft salary floor
+
+### Amendment to D-3 and D-10
+
+D-3 made an explicit base salary below 80,000 a hard blocker, and D-10 deferred any override
+mechanism. Both are amended: **there is no hard salary blocker.**
+
+A stated minimum is a preference, not a law. A listing a few thousand below it can still be a
+good opportunity, and that judgement belongs to a human. A listing below the floor scores zero in
+the compensation dimension and is reported with its shortfall. It is never dropped.
+
+`BlockerCode.EXPLICIT_BASE_SALARY_BELOW_80K` is **disabled, not removed**: the blocker set is
+parity-locked to `PROJECT_GUARDRAILS.md`, so the code remains defined and unused.
+
+### Approved salary targets
+
+Three figures, none of which blocks anything:
+
+- hard floor 70,000
+- soft minimum 85,000
+- market target 120,000
+
+85,000 is the owner's stated figure. 70,000 and 120,000 were proposed by the assistant and
+approved by the owner on 2026-09-26. The market target is anchored to published wage statistics
+rather than to preference, because a listing can clear a personal floor and still underpay for
+the work.
+
+Every market figure requires a source and an as-of date. Configuration loading rejects a figure
+without them: an uncited number about pay is a guess, and a guess about pay is worse than no
+number.
+
+### Approved cost-of-living treatment
+
+Regional price parity is applied **only** when a listing could require relocation. For a remote
+role the candidate remains in Georgia, earns the listing's salary, and spends at Georgia prices,
+so the listed figure stands. Adjusting a remote salary downward would penalise the strongest
+offers, and configuration that would do so is rejected.
+
+A state is recognized only in the standard "City, ST" position, against an individually verified
+parity. An unlisted or ambiguous location yields no adjustment rather than an estimate.
+
+## Canonical reconciliation still outstanding
+
+`CANONICAL_CANDIDATE_DOSSIER.md` still records a 90,000 preference and an 80,000 general
+exclusion, and records no CRM or ticketing tool. Both are open in `docs/VALIDATION_QUEUE.md` as
+VQ-003 and VQ-004. Until those are approved, the configuration is the operating rule and the
+dossier is stale on those two points.

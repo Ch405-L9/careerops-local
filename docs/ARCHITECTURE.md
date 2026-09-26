@@ -58,10 +58,16 @@ through the pipeline. The implemented dimension is reachable two ways: by callin
 through the local operator runner `careerops.tools.technology_alignment`, which reads one
 required technology per line from standard input and prints the dimension.
 
-The runner is deliberately **not** a CLI command. `report_and_cli_score_display_scope` is still
-an unresolved policy key, so the Typer CLI stays help-only with a single `doctor` command, and a
-compliance test enforces that. The runner writes no file, parses no capture, and prints the
-evidence-tier map and gaps before the points, never the points first (P-6, C-5).
+Three operator runners exist under `careerops.tools`, none of them a CLI command:
+`technology_alignment` scores a bare list of required technologies,
+`capture_alignment` imports one complete capture, and `listing_report` ranks several captures
+separated by a `===` line and shows each listing's link, technology points, salary position and
+most serious gap.
+
+They are deliberately **not** CLI commands. `report_and_cli_score_display_scope` is still an
+unresolved policy key, so the Typer CLI stays help-only with a single `doctor` command, and a
+compliance test enforces that. Every runner writes no file and prints the evidence-tier map and
+gaps before the points, never the points first (P-6, C-5).
 
 ## Design invariants
 
@@ -100,6 +106,21 @@ by exactly four steps — Unicode NFC, casefold, whitespace collapse, trim — a
 There is no token matching, substring matching, fuzzy matching, semantic matching, embedding
 matching, LLM matching, or external taxonomy lookup. Spelling and acronym variants are handled
 only by explicit owner-approved alias rows, which are one-way and validated at load time.
+
+**Category substitution is credit plus disclosure, never a claim.** An owner-approved category
+carries one boolean. Substitutable means operating one member transfers to another — a CRM is a
+CRM — so a peer tool earns reduced credit, the match records the tool actually held rather than
+the one requested, and the gap is raised anyway. Non-substitutable means membership transfers
+nothing: a language-specific role requires that language, and a peer raises `CORE_LANGUAGE_GAP`,
+a stronger statement than absence. Category membership is job-side recognition only; credit still
+requires the candidate to hold a member in the approved dossier at a disclosed tier.
+
+**No hard salary floor.** A stated minimum is a preference, not a law. A listing below it scores
+zero in the compensation dimension and is reported with its shortfall; it is never dropped.
+Cost-of-living parity applies only where a listing could require relocation, because a remote role
+is earned at the listing's rate and spent at home prices — the schema rejects a configuration
+that would discount a remote salary. Market figures require a source and an as-of date, and an
+uncited figure is rejected at load time.
 
 **Every match is auditable.** A `TechnologyMatch` cannot be constructed without all nine audit
 values: the raw job phrase, the normalized job identifier, the raw candidate evidence phrase,

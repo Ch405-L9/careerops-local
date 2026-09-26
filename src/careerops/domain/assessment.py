@@ -70,6 +70,12 @@ class TechnologyMatch(FrozenModel):
 
     `technology` is the approved display name shown to a human; `normalized_job_identifier`
     is the internal canonical identifier and is never displayed alone (A-6).
+
+    For a CATEGORY_SUBSTITUTE match, `technology` is the tool the candidate actually holds, not
+    the one the listing asked for, and `alias_family_identifier` carries the category name rather
+    than an alias family. The field name is imprecise for that case and is worth renaming once
+    the category lane settles; the report always states which tool was held either way, so
+    nothing claims the requested tool.
     """
 
     technology: str
@@ -99,12 +105,14 @@ class TechnologyMatch(FrozenModel):
 
     @model_validator(mode="after")
     def _check_match_method(self) -> "TechnologyMatch":
-        if self.match_method is MatchMethod.ALIAS:
+        needs_source = {MatchMethod.ALIAS, MatchMethod.CATEGORY_SUBSTITUTE}
+        if self.match_method in needs_source:
             if self.alias_family_identifier is None or not (
                 self.alias_family_identifier.strip()
             ):
                 raise ValueError(
-                    "an ALIAS match must name the alias family that produced it (A-6)"
+                    f"a {self.match_method.value} match must name what produced it: the alias "
+                    "family for ALIAS, the category for CATEGORY_SUBSTITUTE"
                 )
         elif self.alias_family_identifier is not None:
             raise ValueError(

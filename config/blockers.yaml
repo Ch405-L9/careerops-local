@@ -26,8 +26,11 @@ blockers:
     enabled: true
   - code: MANDATORY_DEGREE_WITHOUT_EQUIVALENCY
     enabled: true
+  # Disabled by owner decision 2026-09-26: the salary floor is soft. A listing below the
+  # recorded figure scores zero and is reported with its shortfall, never dropped. The code
+  # remains defined because the blocker set is parity-locked to PROJECT_GUARDRAILS.md.
   - code: EXPLICIT_BASE_SALARY_BELOW_80K
-    enabled: true
+    enabled: false
   - code: RESEARCH_HEAVY_UNVERIFIED_QUALIFICATIONS
     enabled: true
   - code: SENIOR_SCOPE_MATERIALLY_UNSUPPORTED

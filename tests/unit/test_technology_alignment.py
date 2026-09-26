@@ -406,6 +406,104 @@ def test_a_preferred_match_cannot_be_smuggled_into_the_result(normalization) -> 
         )
 
 
+# ================================================== category substitution (KISS rule)
+
+CRM_TERMS: tuple[CandidateTerm, ...] = (
+    CandidateTerm("Salesforce", T3, "Synthetic employment — Sample employer"),
+    CandidateTerm("Python", T1, "Synthetic skills — Sample section"),
+)
+
+
+def test_a_peer_crm_earns_half_credit_and_still_discloses_the_gap(config) -> None:
+    """A CRM is a CRM. Holding Salesforce when they ask for Freshdesk is worth something.
+
+    20 x 0.90 x 0.50 = 9.0. The match names Salesforce, never Freshdesk, and the gap is raised
+    anyway so reduced credit can never be read as the requested tool.
+    """
+    result = score_technology_alignment("x", ("Freshdesk",), CRM_TERMS, config)
+    assert result.points == 9.0
+    match = result.matches[0]
+    assert match.match_method is MatchMethod.CATEGORY_SUBSTITUTE
+    assert match.technology == "Salesforce"
+    assert match.raw_job_phrase == "Freshdesk"
+    assert match.alias_family_identifier == "CRM_TICKETING"
+    assert match.tier is T3
+    assert [gap.reason for gap in result.gaps] == [
+        TechnologyGapReason.CATEGORY_SUBSTITUTE_ONLY
+    ]
+
+
+def test_direct_evidence_beats_substitution(config) -> None:
+    """Asking for the tool actually held must never downgrade to a substitute."""
+    result = score_technology_alignment("x", ("Salesforce",), CRM_TERMS, config)
+    assert result.matches[0].match_method is MatchMethod.EXACT
+    assert result.points == 18.0
+    assert result.gaps == ()
+
+
+def test_a_tier_one_substitute_is_still_only_half(config) -> None:
+    terms = (CandidateTerm("Salesforce", T1, "Synthetic skills — Sample section"),)
+    result = score_technology_alignment("x", ("Monday",), terms, config)
+    assert result.points == 10.0
+    assert result.points != 20.0
+
+
+def test_a_non_substitutable_miss_earns_nothing_but_names_the_peer(config) -> None:
+    """A Rust role needs Rust. Python is a peer language and earns no credit for it."""
+    result = score_technology_alignment("x", ("Rust",), CRM_TERMS, config)
+    assert result.points == 0.0
+    assert result.matches == ()
+    gap = result.gaps[0]
+    assert gap.reason is TechnologyGapReason.CORE_LANGUAGE_GAP
+    assert gap.best_tier_found is T1
+
+
+def test_a_language_miss_with_no_language_held_is_merely_unrecognized(config) -> None:
+    """CORE_LANGUAGE_GAP is the stronger claim, so it needs a peer in the category."""
+    terms = (CandidateTerm("Salesforce", T3, "Synthetic employment — Sample employer"),)
+    result = score_technology_alignment("x", ("Rust",), terms, config)
+    assert result.gaps[0].reason is TechnologyGapReason.UNRECOGNIZED_TERM
+    assert result.gaps[0].best_tier_found is None
+
+
+def test_a_language_hit_survives_a_language_miss(config) -> None:
+    """20 x 1.00 / 2 = 10.0: the Rust gap must not erase the Python match."""
+    result = score_technology_alignment("x", ("Rust", "Python"), CRM_TERMS, config)
+    assert result.points == 10.0
+    assert [m.technology for m in result.matches] == ["Python"]
+
+
+def test_a_substitute_match_must_name_its_category(normalization) -> None:
+    """The audit trail records what produced the credit, exactly as for an alias."""
+    from pydantic import ValidationError
+
+    from careerops.domain.assessment import TechnologyMatch
+
+    payload = {
+        "technology": "Salesforce",
+        "raw_job_phrase": "Freshdesk",
+        "normalized_job_identifier": "freshdesk",
+        "raw_candidate_evidence_phrase": "Salesforce",
+        "normalized_candidate_identifier": "salesforce",
+        "match_method": MatchMethod.CATEGORY_SUBSTITUTE,
+        "alias_family_identifier": None,
+        "requirement_kind": RequirementKind.REQUIRED,
+        "tier": T3,
+        "evidence_reference": "Synthetic employment — Sample employer",
+    }
+    with pytest.raises(ValidationError, match="must name what produced it"):
+        TechnologyMatch.model_validate(payload)
+
+
+def test_substitution_needs_the_candidate_to_hold_a_member(config) -> None:
+    """Listing a name in the category table is not candidate evidence."""
+    terms = (CandidateTerm("Python", T1, "Synthetic skills — Sample section"),)
+    result = score_technology_alignment("x", ("Salesforce",), terms, config)
+    assert result.points == 0.0
+    assert result.matches == ()
+    assert result.gaps[0].reason is TechnologyGapReason.UNRECOGNIZED_TERM
+
+
 # ================================================ calibration against the real dossier
 
 

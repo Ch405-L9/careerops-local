@@ -115,7 +115,7 @@ def test_blank_audit_value_is_rejected(field: str) -> None:
 
 def test_alias_match_must_name_its_alias_family() -> None:
     """A-6: the audit trail records which alias row fired."""
-    with pytest.raises(ValidationError, match="must name the alias family"):
+    with pytest.raises(ValidationError, match="must name what produced it"):
         TechnologyMatch.model_validate(
             _match(match_method=MatchMethod.ALIAS, alias_family_identifier=None)
         )

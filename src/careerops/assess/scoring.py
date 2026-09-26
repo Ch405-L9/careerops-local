@@ -26,6 +26,7 @@ from careerops.domain.assessment import (
 from careerops.domain.candidate import CandidateDossier
 from careerops.domain.job import NormalizedJob
 from careerops.dossier.approved_dossier import CandidateTerm
+from careerops.enums import MatchMethod
 
 __all__ = ["assess_compensation", "assess_job", "score_technology_alignment"]
 
@@ -71,9 +72,19 @@ def score_technology_alignment(
         if identifier not in slots:
             slots.append(identifier)
 
-    matches, gaps = match_technologies(required_technologies, terms, normalization)
+    categories = config.scoring.technology_categories
+    credit = categories.substitution_credit
+    matches, gaps = match_technologies(
+        required_technologies, terms, normalization, categories
+    )
     multiplier_sum = sum(
-        getattr(multipliers, match.tier.value) for match in matches
+        getattr(multipliers, match.tier.value)
+        * (
+            credit.substitute
+            if match.match_method is MatchMethod.CATEGORY_SUBSTITUTE
+            else credit.direct
+        )
+        for match in matches
     )
 
     slot_count = len(slots)

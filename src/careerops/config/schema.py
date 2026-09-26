@@ -22,7 +22,13 @@ from typing import Any, Final, Literal
 from pydantic import field_validator, model_validator
 
 from careerops.domain import FrozenModel
-from careerops.enums import BlockerCode, MatchClassification, RiskFlag, SalaryCompatibility
+from careerops.enums import (
+    BlockerCode,
+    MatchClassification,
+    PolicyStatus,
+    RiskFlag,
+    SalaryCompatibility,
+)
 
 __all__ = [
     "ALLOCATION_RULE_DIMENSIONS",
@@ -38,6 +44,13 @@ __all__ = [
     "UNRESOLVED",
     "AliasFamily",
     "AssessmentConfig",
+    "MarketReference",
+    "MarketReferenceRow",
+    "RegionalPriceParity",
+    "SalaryTargets",
+    "SubstitutionCredit",
+    "TechnologyCategories",
+    "TechnologyCategory",
     "AssessmentPolicyUnresolvedError",
     "BlockerConfig",
     "BlockerRule",
@@ -662,6 +675,94 @@ class RequiredPreferredPolicy(FrozenModel):
         return self
 
 
+class SubstitutionCredit(FrozenModel):
+    """Three multipliers, and only three: direct, substitute, none.
+
+    A peer tool in a substitutable category earns `substitute`, never `direct`. The report names
+    the tool actually held, so reduced credit is a disclosure rather than a claim.
+    """
+
+    direct: float
+    substitute: float
+    none: float
+
+    @model_validator(mode="after")
+    def _check_order(self) -> "SubstitutionCredit":
+        if self.direct != 1.0:
+            raise ValueError("direct credit is the reference and must equal 1.0")
+        if self.none != 0.0:
+            raise ValueError("no evidence must earn exactly 0.0")
+        if not 0.0 < self.substitute < self.direct:
+            raise ValueError(
+                "substitute credit must lie strictly between none and direct: a peer tool is "
+                f"worth something and is never worth the requested tool, got {self.substitute}"
+            )
+        return self
+
+
+class TechnologyCategory(FrozenModel):
+    """One owner-approved technology category.
+
+    `substitutable` decides everything. True means operating one member transfers to another, so
+    a requirement met by a peer earns reduced credit. False means membership transfers nothing:
+    a language-specific role requires that language, and a miss is a distinct red flag.
+
+    `members` are job-side names the category recognizes. Listing a name here is not candidate
+    evidence: credit still requires the candidate to hold a member in the approved dossier at a
+    disclosed tier.
+    """
+
+    name: str
+    substitutable: bool
+    note: str
+    members: tuple[str, ...]
+
+    @model_validator(mode="after")
+    def _check_category(self) -> "TechnologyCategory":
+        if CANONICAL_ID_PATTERN.match(self.name) is None:
+            raise ValueError(f"category name must be uppercase-snake, got {self.name!r}")
+        if not self.note.strip():
+            raise ValueError(f"{self.name}: a category requires a note explaining the grouping")
+        if len(self.members) < 2:
+            raise ValueError(
+                f"{self.name}: a category needs at least two members; one member groups nothing"
+            )
+        if len(set(self.members)) != len(self.members):
+            raise ValueError(f"{self.name}: duplicate member")
+        return self
+
+
+class TechnologyCategories(FrozenModel):
+    """The category table and its three substitution multipliers."""
+
+    substitution_credit: SubstitutionCredit
+    categories: tuple[TechnologyCategory, ...]
+
+    @model_validator(mode="after")
+    def _check_table(self) -> "TechnologyCategories":
+        names = [category.name for category in self.categories]
+        if len(set(names)) != len(names):
+            raise ValueError("duplicate category name")
+        seen: dict[str, str] = {}
+        for category in self.categories:
+            for member in category.members:
+                key = member.casefold()
+                if key in seen:
+                    raise ValueError(
+                        f"{member!r} appears in both {seen[key]} and {category.name}; a "
+                        "technology belongs to one category, or substitutability is ambiguous"
+                    )
+                seen[key] = category.name
+        return self
+
+    def category_for(self, member_key: str) -> TechnologyCategory | None:
+        """Return the category whose members include this casefolded name, if any."""
+        for category in self.categories:
+            if member_key in {name.casefold() for name in category.members}:
+                return category
+        return None
+
+
 class ScoringConfig(FrozenModel):
     """Weighted dimensions plus the approved P-1, P-2, P-3, P-6, and A-5 to A-7 policy."""
 
@@ -673,6 +774,7 @@ class ScoringConfig(FrozenModel):
     technology_base_credit_allocation: TechnologyAllocationPolicy
     technology_matching_normalization: TechnologyNormalizationPolicy
     required_vs_preferred_technology_handling: RequiredPreferredPolicy
+    technology_categories: TechnologyCategories
     unresolved_policy: dict[str, Any]
 
     @field_validator("weights")
@@ -721,6 +823,122 @@ class ScoringConfig(FrozenModel):
         )
 
 
+class SalaryTargets(FrozenModel):
+    """Three salary figures: hard floor, soft minimum, market target.
+
+    None of them blocks. A listing below the hard floor scores zero in the compensation
+    dimension and is still reported with its shortfall, because a few thousand under a stated
+    minimum is a judgement for a human.
+    """
+
+    hard_floor_usd: int
+    soft_minimum_usd: int
+    market_target_usd: int
+    status: PolicyStatus
+    decided_on: str
+    note: str
+
+    @model_validator(mode="after")
+    def _check_order(self) -> "SalaryTargets":
+        if not 0 < self.hard_floor_usd < self.soft_minimum_usd < self.market_target_usd:
+            raise ValueError(
+                "salary targets must ascend: hard floor below soft minimum below market "
+                f"target, got {self.hard_floor_usd}, {self.soft_minimum_usd}, "
+                f"{self.market_target_usd}"
+            )
+        if not self.decided_on.strip() or not self.note.strip():
+            raise ValueError("salary targets require a decision date and a note")
+        return self
+
+
+class MarketReferenceRow(FrozenModel):
+    """One market figure, with its source and as-of date. Both are mandatory.
+
+    An uncited salary figure is a guess, and a guess about pay is worse than no figure.
+    """
+
+    label: str
+    value: int
+    as_of: str
+    source: str
+    note: str
+
+    @model_validator(mode="after")
+    def _check_citation(self) -> "MarketReferenceRow":
+        if self.value <= 0:
+            raise ValueError(f"{self.label}: a market figure must be positive")
+        for field in ("as_of", "source", "note"):
+            if not str(getattr(self, field)).strip():
+                raise ValueError(f"{self.label}: {field} is required for a market figure")
+        return self
+
+
+class MarketReference(FrozenModel):
+    """Published market figures used to judge whether a listing pays for the work."""
+
+    status: PolicyStatus
+    rows: tuple[MarketReferenceRow, ...]
+
+    @model_validator(mode="after")
+    def _check_rows(self) -> "MarketReference":
+        labels = [row.label for row in self.rows]
+        if len(set(labels)) != len(labels):
+            raise ValueError("duplicate market reference label")
+        return self
+
+
+class RegionalPriceParity(FrozenModel):
+    """Regional price parities, used only when a listing would require relocation.
+
+    For a remote role the candidate stays put, earns the listing's salary and spends at home
+    prices, so no adjustment applies. Adjusting a remote salary downward would penalise the best
+    offers, which is the opposite of useful.
+    """
+
+    status: PolicyStatus
+    us_average: int
+    as_of: str
+    source: str
+    candidate_state: str
+    apply_only_on_relocation: bool
+    states: dict[str, float]
+    note: str
+
+    @model_validator(mode="after")
+    def _check_parities(self) -> "RegionalPriceParity":
+        if self.us_average != 100:
+            raise ValueError("the regional price parity baseline is 100 by definition")
+        if not self.apply_only_on_relocation:
+            raise ValueError(
+                "a remote listing must not be cost-of-living adjusted: the candidate spends at "
+                "home prices, so adjusting downward would penalise the strongest offers"
+            )
+        if self.candidate_state not in self.states:
+            raise ValueError(
+                f"the candidate state {self.candidate_state!r} must have a listed parity, "
+                "otherwise no comparison is possible"
+            )
+        for state, parity in self.states.items():
+            if len(state) != 2 or not state.isupper():
+                raise ValueError(f"state key must be a two-letter uppercase code, got {state!r}")
+            if parity <= 0:
+                raise ValueError(f"{state}: parity must be positive")
+        for field in ("as_of", "source", "note"):
+            if not str(getattr(self, field)).strip():
+                raise ValueError(f"regional price parity requires {field}")
+        return self
+
+    def relocation_ratio(self, job_state: str) -> float | None:
+        """Home parity divided by job-location parity, or None for an unlisted state.
+
+        An unlisted state yields no adjustment rather than an interpolated guess.
+        """
+        target = self.states.get(job_state)
+        if target is None:
+            return None
+        return self.states[self.candidate_state] / target
+
+
 class CompensationBand(FrozenModel):
     """One compensation band. Lower bound inclusive, upper bound exclusive."""
 
@@ -741,6 +959,9 @@ class CompensationConfig(FrozenModel):
     unknown_points: int
     contract_handling: str
     unknown_handling: str
+    salary_targets: SalaryTargets
+    market_reference: MarketReference
+    regional_price_parity: RegionalPriceParity
 
     @model_validator(mode="after")
     def _check_tiling(self) -> "CompensationConfig":

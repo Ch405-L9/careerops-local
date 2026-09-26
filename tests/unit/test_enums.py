@@ -93,9 +93,13 @@ def test_insufficient_evidence_available_on_both_status_enums() -> None:
 # ------------------------------------------------- technology matching (A-5 to A-7)
 
 
-def test_match_method_has_exactly_the_two_approved_routes() -> None:
-    """A-6: alias matching is whole-phrase only; there is no other route."""
-    assert [member.value for member in MatchMethod] == ["EXACT", "ALIAS"]
+def test_match_method_has_exactly_the_approved_routes() -> None:
+    """A-6 plus the owner-approved category-substitution route."""
+    assert [member.value for member in MatchMethod] == [
+        "EXACT",
+        "ALIAS",
+        "CATEGORY_SUBSTITUTE",
+    ]
 
 
 def test_no_prohibited_match_method_member_exists() -> None:
@@ -121,13 +125,15 @@ def test_requirement_kind_is_required_or_preferred() -> None:
     assert [member.value for member in RequirementKind] == ["REQUIRED", "PREFERRED"]
 
 
-def test_technology_gap_reasons_are_the_four_approved_reasons() -> None:
-    """E-4, E-6, and E-7 are the only sources of a required-slot gap."""
+def test_technology_gap_reasons_are_the_approved_reasons() -> None:
+    """E-4, E-6, E-7, plus the two owner-approved category signals."""
     assert [member.value for member in TechnologyGapReason] == [
         "NO_EVIDENCE",
         "UNRECOGNIZED_TERM",
         "TIER_2_OR_TIER_4_ONLY",
         "PROHIBITED_INFERENCE",
+        "CORE_LANGUAGE_GAP",
+        "CATEGORY_SUBSTITUTE_ONLY",
     ]
 
 
@@ -235,7 +241,7 @@ SELF_DECLARED_MEMBERS: dict[str, tuple[str, ...]] = {
         "AVOID",
         "INSUFFICIENT_EVIDENCE",
     ),
-    "MatchMethod": ("EXACT", "ALIAS"),
+    "MatchMethod": ("EXACT", "ALIAS", "CATEGORY_SUBSTITUTE"),
     "PolicyStatus": ("UNRESOLVED", "PROVISIONAL", "APPROVED"),
     "RelocationStatus": (
         "PROVIDED",
@@ -250,6 +256,8 @@ SELF_DECLARED_MEMBERS: dict[str, tuple[str, ...]] = {
         "UNRECOGNIZED_TERM",
         "TIER_2_OR_TIER_4_ONLY",
         "PROHIBITED_INFERENCE",
+        "CORE_LANGUAGE_GAP",
+        "CATEGORY_SUBSTITUTE_ONLY",
     ),
     "WorkArrangementType": (
         "US_REMOTE",

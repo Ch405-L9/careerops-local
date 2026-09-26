@@ -225,13 +225,19 @@ class RiskFlag(StrEnum):
 class MatchMethod(StrEnum):
     """How a job phrase reached its canonical technology identifier (A-6).
 
-    These are the only two routes. Token matching, substring matching, fuzzy matching,
-    semantic matching, embedding matching, LLM matching, and external taxonomy or API lookup
-    are all prohibited, so no member exists for them.
+    EXACT and ALIAS resolve a phrase to the same technology. CATEGORY_SUBSTITUTE is different
+    in kind: the candidate holds a *different* tool in the same owner-approved substitutable
+    category, so it earns reduced credit and the report always names the tool actually used. It
+    never claims the requested tool.
+
+    Token matching, substring matching, fuzzy matching, semantic matching, embedding matching,
+    LLM matching, and external taxonomy or API lookup remain prohibited, so no member exists
+    for them.
     """
 
     EXACT = "EXACT"
     ALIAS = "ALIAS"
+    CATEGORY_SUBSTITUTE = "CATEGORY_SUBSTITUTE"
 
 
 class RequirementKind(StrEnum):
@@ -252,12 +258,23 @@ class TechnologyGapReason(StrEnum):
     tier (E-4). TIER_2_OR_TIER_4_ONLY still raises the gap despite partial credit (E-7).
     PROHIBITED_INFERENCE records the tier that was refused (E-6). There is deliberately no
     member for a preferred-technology gap: preferred technologies never raise one (A-7).
+
+    CORE_LANGUAGE_GAP is the strong signal: the requirement sits in a category the owner marked
+    non-substitutable, such as a programming language, and the candidate holds a different
+    member of it. Knowing Python does not get you a Rust job, and that is a different fact from
+    simply having no evidence.
+
+    CATEGORY_SUBSTITUTE_ONLY is the soft signal: the requirement sits in a substitutable
+    category and the candidate holds a peer tool. Reduced credit is granted and the gap is still
+    disclosed, so nobody reads the credit as the requested tool.
     """
 
     NO_EVIDENCE = "NO_EVIDENCE"
     UNRECOGNIZED_TERM = "UNRECOGNIZED_TERM"
     TIER_2_OR_TIER_4_ONLY = "TIER_2_OR_TIER_4_ONLY"
     PROHIBITED_INFERENCE = "PROHIBITED_INFERENCE"
+    CORE_LANGUAGE_GAP = "CORE_LANGUAGE_GAP"
+    CATEGORY_SUBSTITUTE_ONLY = "CATEGORY_SUBSTITUTE_ONLY"
 
 
 class PolicyStatus(StrEnum):

@@ -22,9 +22,13 @@ from careerops.config.schema import (
     ReportDisplayPolicy,
     RequiredPreferredPolicy,
     RiskFlagConfig,
+    MarketReference,
+    RegionalPriceParity,
+    SalaryTargets,
     ScoringConfig,
     SeniorityBands,
     SeniorScopeRule,
+    TechnologyCategories,
     TechnologyAllocationPolicy,
     TechnologyNormalizationPolicy,
 )
@@ -166,6 +170,57 @@ VALID_REQUIRED_PREFERRED: dict[str, Any] = {
     "preferred_extraction": "deferred",
 }
 
+VALID_CATEGORIES: dict[str, Any] = {
+    "substitution_credit": {"direct": 1.00, "substitute": 0.50, "none": 0.00},
+    "categories": [
+        {
+            "name": "CRM_TICKETING",
+            "substitutable": True,
+            "note": "Employee-facing CRM and ticketing systems.",
+            "members": ["Salesforce", "Monday", "Freshdesk"],
+        },
+        {
+            "name": "PROGRAMMING_LANGUAGE",
+            "substitutable": False,
+            "note": "General-purpose languages, not interchangeable.",
+            "members": ["Python", "Rust", "Go"],
+        },
+    ],
+}
+
+VALID_SALARY_TARGETS: dict[str, Any] = {
+    "hard_floor_usd": 70000,
+    "soft_minimum_usd": 85000,
+    "market_target_usd": 120000,
+    "status": "PROVISIONAL",
+    "decided_on": "2026-09-26",
+    "note": "Invented targets used only for tests.",
+}
+
+VALID_MARKET_REFERENCE: dict[str, Any] = {
+    "status": "PROVISIONAL",
+    "rows": [
+        {
+            "label": "invented_median_annual_usd",
+            "value": 100000,
+            "as_of": "2025-05",
+            "source": "https://example.invalid/source",
+            "note": "Invented figure used only for tests.",
+        }
+    ],
+}
+
+VALID_RPP: dict[str, Any] = {
+    "status": "PROVISIONAL",
+    "us_average": 100,
+    "as_of": "2024",
+    "source": "https://example.invalid/rpp",
+    "candidate_state": "GA",
+    "apply_only_on_relocation": True,
+    "states": {"GA": 96.3, "CA": 110.7},
+    "note": "Invented parities used only for tests.",
+}
+
 VALID_ALIAS_FAMILY: dict[str, Any] = {
     "canonical_id": "REACT",
     "approval_date": "2026-09-26",
@@ -210,6 +265,7 @@ def _scoring(
             "technology_base_credit_allocation": dict(VALID_ALLOCATION),
             "technology_matching_normalization": _normalization(),
             "required_vs_preferred_technology_handling": dict(VALID_REQUIRED_PREFERRED),
+            "technology_categories": VALID_CATEGORIES,
             "unresolved_policy": (
                 unresolved_policy if unresolved_policy is not None else _unresolved_policy()
             ),
@@ -441,6 +497,9 @@ def _compensation(bands: list[dict[str, Any]], **overrides: Any) -> Compensation
         "unknown_points": 0,
         "contract_handling": "never annualize",
         "unknown_handling": "never reject on absence alone",
+        "salary_targets": dict(VALID_SALARY_TARGETS),
+        "market_reference": VALID_MARKET_REFERENCE,
+        "regional_price_parity": VALID_RPP,
     }
     payload.update(overrides)
     return CompensationConfig.model_validate(payload)
@@ -1020,3 +1079,100 @@ def test_the_unevaluated_ceiling_is_eighty_two() -> None:
     )
     assert unevaluable == 18
     assert sum(weights.values()) - unevaluable == 82
+
+
+# ======================================================== technology categories
+
+
+def _categories(**overrides: Any) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "substitution_credit": dict(VALID_CATEGORIES["substitution_credit"]),
+        "categories": [dict(c) for c in VALID_CATEGORIES["categories"]],
+    }
+    payload.update(overrides)
+    return payload
+
+
+def test_valid_category_table_is_accepted() -> None:
+    table = TechnologyCategories.model_validate(_categories())
+    assert table.category_for("salesforce").name == "CRM_TICKETING"
+    assert table.category_for("rust").substitutable is False
+    assert table.category_for("nothing") is None
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "match"),
+    [
+        ("direct", 0.9, "reference and must equal 1.0"),
+        ("none", 0.1, "must earn exactly 0.0"),
+        ("substitute", 1.0, "never worth the requested tool"),
+        ("substitute", 0.0, "worth something"),
+        ("substitute", 1.5, "never worth the requested tool"),
+    ],
+)
+def test_substitution_credit_bounds(field: str, value: float, match: str) -> None:
+    """A peer tool is worth something, and never worth the requested tool."""
+    credit = dict(VALID_CATEGORIES["substitution_credit"])
+    credit[field] = value
+    with pytest.raises(ValidationError, match=match):
+        TechnologyCategories.model_validate(_categories(substitution_credit=credit))
+
+
+def test_a_technology_may_not_sit_in_two_categories() -> None:
+    """Otherwise substitutability is ambiguous."""
+    categories = [dict(c) for c in VALID_CATEGORIES["categories"]]
+    categories[1]["members"] = [*categories[1]["members"], "Salesforce"]
+    with pytest.raises(ValidationError, match="belongs to one category"):
+        TechnologyCategories.model_validate(_categories(categories=categories))
+
+
+def test_a_category_needs_two_members_and_a_note() -> None:
+    categories = [dict(c) for c in VALID_CATEGORIES["categories"]]
+    categories[0]["members"] = ["Salesforce"]
+    with pytest.raises(ValidationError, match="at least two members"):
+        TechnologyCategories.model_validate(_categories(categories=categories))
+    categories = [dict(c) for c in VALID_CATEGORIES["categories"]]
+    categories[0]["note"] = "  "
+    with pytest.raises(ValidationError, match="requires a note"):
+        TechnologyCategories.model_validate(_categories(categories=categories))
+
+
+# ============================================================== salary targets
+
+
+def test_salary_targets_must_ascend() -> None:
+    payload = dict(VALID_SALARY_TARGETS)
+    payload["market_target_usd"] = 80000
+    with pytest.raises(ValidationError, match="must ascend"):
+        SalaryTargets.model_validate(payload)
+
+
+def test_a_market_figure_requires_a_source_and_date() -> None:
+    """An uncited salary figure is a guess, and a guess about pay is worse than none."""
+    for field in ("as_of", "source", "note"):
+        row = dict(VALID_MARKET_REFERENCE["rows"][0])
+        row[field] = "   "
+        with pytest.raises(ValidationError, match="required for a market figure"):
+            MarketReference.model_validate({"status": "PROVISIONAL", "rows": [row]})
+
+
+def test_remote_roles_may_not_be_cost_of_living_adjusted() -> None:
+    """The candidate spends at home prices, so adjusting down would penalise best offers."""
+    payload = dict(VALID_RPP)
+    payload["apply_only_on_relocation"] = False
+    with pytest.raises(ValidationError, match="must not be cost-of-living adjusted"):
+        RegionalPriceParity.model_validate(payload)
+
+
+def test_relocation_ratio_declines_an_unlisted_state() -> None:
+    """No interpolated guesses: an unlisted state yields no adjustment."""
+    rpp = RegionalPriceParity.model_validate(dict(VALID_RPP))
+    assert rpp.relocation_ratio("TX") is None
+    assert rpp.relocation_ratio("CA") == pytest.approx(96.3 / 110.7)
+
+
+def test_the_candidate_state_must_have_a_parity() -> None:
+    payload = dict(VALID_RPP)
+    payload["states"] = {"CA": 110.7}
+    with pytest.raises(ValidationError, match="candidate state"):
+        RegionalPriceParity.model_validate(payload)

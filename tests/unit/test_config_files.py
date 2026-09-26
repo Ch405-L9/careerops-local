@@ -25,6 +25,7 @@ from careerops.enums import (
     BlockerCode,
     EvidenceTier,
     MatchClassification,
+    PolicyStatus,
     RiskFlag,
     SalaryCompatibility,
 )
@@ -150,11 +151,67 @@ def test_every_boundary_amount_falls_in_exactly_one_band(
     assert matched[0].classification is expected
 
 
-def test_only_below_80k_is_a_hard_blocker(config_dir: Path) -> None:
-    """D-3, A-2: 86,000-89,999 is not a hard blocker."""
-    bands = load_assessment_config(config_dir).compensation.bands
-    blocking = {band.classification for band in bands if band.hard_blocker}
-    assert blocking == {SalaryCompatibility.BELOW_80K}
+def test_no_compensation_band_is_a_hard_blocker(config_dir: Path) -> None:
+    """Owner decision 2026-09-26: the salary floor is soft.
+
+    A few thousand under a stated minimum can still be a good opportunity, and that is a
+    judgement for a human. A low salary scores zero and is reported with its shortfall; it is
+    never an automatic rejection.
+    """
+    config = load_assessment_config(config_dir)
+    assert not [band for band in config.compensation.bands if band.hard_blocker]
+    disabled = {
+        rule.code for rule in config.blockers.blockers if not rule.enabled
+    }
+    assert BlockerCode.EXPLICIT_BASE_SALARY_BELOW_80K in disabled
+
+
+def test_the_salary_blocker_code_still_exists(config_dir: Path) -> None:
+    """The blocker set is parity-locked to PROJECT_GUARDRAILS.md, so the code stays defined."""
+    codes = {rule.code for rule in load_assessment_config(config_dir).blockers.blockers}
+    assert codes == set(BlockerCode)
+    assert SalaryCompatibility.BELOW_80K in {
+        band.classification for band in load_assessment_config(config_dir).compensation.bands
+    }
+
+
+def test_salary_targets_are_the_approved_triple(config_dir: Path) -> None:
+    """70k hard floor, 85k soft minimum, 120k market target. None of them blocks."""
+    targets = load_assessment_config(config_dir).compensation.salary_targets
+    assert (targets.hard_floor_usd, targets.soft_minimum_usd, targets.market_target_usd) == (
+        70_000,
+        85_000,
+        120_000,
+    )
+    assert targets.status is PolicyStatus.PROVISIONAL
+
+
+def test_every_market_figure_is_cited(config_dir: Path) -> None:
+    for row in load_assessment_config(config_dir).compensation.market_reference.rows:
+        assert row.source.startswith("https://")
+        assert row.as_of
+        assert row.value > 0
+
+
+def test_cost_of_living_applies_only_on_relocation(config_dir: Path) -> None:
+    """Remote work at Georgia prices is an advantage, not something to discount."""
+    rpp = load_assessment_config(config_dir).compensation.regional_price_parity
+    assert rpp.apply_only_on_relocation is True
+    assert rpp.candidate_state == "GA"
+    assert rpp.relocation_ratio("CA") < 1.0
+    assert rpp.relocation_ratio("NY") < 1.0
+    assert rpp.relocation_ratio("NC") > 1.0, "a cheaper state must read as upside"
+    assert rpp.relocation_ratio("CO") is None, "an unverified state gets no estimate"
+
+
+def test_the_category_table_encodes_the_substitutability_rule(config_dir: Path) -> None:
+    """A CRM is a CRM. A Rust job needs Rust."""
+    table = load_assessment_config(config_dir).scoring.technology_categories
+    assert table.category_for("salesforce").substitutable is True
+    assert table.category_for("freshdesk").substitutable is True
+    assert table.category_for("rust").substitutable is False
+    assert table.category_for("python").substitutable is False
+    assert table.substitution_credit.substitute == 0.50
 
 
 def test_below_preferred_review_note_states_both_boundaries(config_dir: Path) -> None:

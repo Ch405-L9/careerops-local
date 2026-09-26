@@ -138,3 +138,92 @@ The sequence is a prohibited-term declaration first, then an enum member, in one
 3. Extend the dossier parity suite so the declaration cannot drift from the canonical list.
 
 Approval phrase would be `APPROVE PATCH VQ-002`. Nothing is blocked while this stays deferred.
+
+---
+
+## VQ-003 — Salary floor made soft, and the target raised
+
+**Raised:** 2026-09-26, by the owner.
+**Status:** APPLIED to configuration; canonical reconciliation OPEN.
+**Confidence:** VERIFIED as the owner's current instruction.
+
+### What the owner said
+
+A stated minimum is not a law. A few thousand under it can still be a good opportunity, and that
+is a judgement for a human, not an automatic rejection. On the high end, a listing paying far
+above the stated maximum should be surfaced, not filtered.
+
+### What changed
+
+- `EXPLICIT_BASE_SALARY_BELOW_80K` is `enabled: false`, and no compensation band is a hard
+  blocker. A low salary scores zero and is reported with its shortfall.
+- `salary_targets` added: hard floor 70,000, soft minimum 85,000, market target 120,000. None of
+  the three blocks anything.
+- `market_reference` added, anchored to BLS Occupational Employment and Wage Statistics, with a
+  source URL and as-of date required on every row.
+- `regional_price_parity` added, BEA 2024, applied only when a listing could require relocation.
+
+### What conflicts, and is not yet reconciled
+
+`CANONICAL_CANDIDATE_DOSSIER.md` still records "Preferred base salary minimum: $90,000 USD" and
+"General exclusion: Below $80,000 base unless Anthony explicitly records a compelling reason".
+Decisions D-3 and D-10 made that exclusion a hard blocker with no override path.
+
+The configuration now contradicts all three. That is deliberate and owner-instructed, but the
+canonical record has not caught up.
+
+### Provenance of the three numbers
+
+- 85,000 is the owner's figure, stated directly.
+- 70,000 and 120,000 were proposed by the assistant and approved by the owner on 2026-09-26.
+  120,000 is anchored to the published BLS national median for Data Scientists, the closest
+  occupation BLS publishes; there is no Applied AI Engineer occupation code.
+
+Worth recording plainly: the dossier's 85,000 to 90,000 range sits materially below the published
+market median for the roles being targeted. That is why the target was raised rather than the
+floor lowered.
+
+### Approval needed
+
+`APPROVE PATCH VQ-003` would update the dossier's work-preferences table and add a decision
+record superseding the salary portions of D-3 and D-10. Until then the configuration is the
+operating rule and the dossier is stale on this point.
+
+---
+
+## VQ-004 — CRM and ticketing experience absent from the dossier
+
+**Raised:** 2026-09-26, by the owner.
+**Status:** OPEN — blocked on owner detail.
+**Confidence:** UNVERIFIED. Owner-stated, not yet recorded anywhere.
+
+### What was stated
+
+The owner has CRM and ticketing experience — Salesforce was named, with Monday and Freshdesk
+described as lighter tools in the same category.
+
+### What conflicts
+
+`CANONICAL_CANDIDATE_DOSSIER.md` names no CRM or ticketing tool at all. Not Salesforce, Monday,
+Freshdesk, Zendesk, Jira, or ServiceNow. The dossier records the surrounding activity — Tier
+II/III support, technical escalation, SOPs and runbooks, remote support, customer-facing
+technical implementation — across four support roles, with no tool named.
+
+### Consequence today
+
+A listing requiring Salesforce reports `UNRECOGNIZED_TERM` and scores zero. The category lane
+exists and works: it would grant substitution credit and name the tool actually held. It has
+nothing to point at, because the dossier records no member of `CRM_TICKETING`.
+
+### What is needed
+
+Which tools, at which employer. Employment use is Tier 3 evidence. Note that
+`EmploymentEvidence.technologies` is currently empty for all four entries, by a separate recorded
+limit, so this patch either fills those lists or adds the tools as verified skills.
+
+Worth asking more broadly: if six years of support tooling never reached the dossier, monitoring,
+remote-access, imaging, and RMM tools may be missing the same way.
+
+### Approval needed
+
+`APPROVE PATCH VQ-004`, plus the tool names and employers.

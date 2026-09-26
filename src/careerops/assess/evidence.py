@@ -3,10 +3,18 @@
 Deterministic and pure: `(inputs, config)` in, values out. No I/O, no clock, no randomness.
 Identical inputs always produce identical output.
 
-Matching is whole-phrase equality of lookup keys, and nothing else. There is no token
-matching, substring matching, fuzzy matching, semantic matching, embedding matching, LLM
-matching, or external taxonomy or API lookup. A lookup key is derived using only the four
-approved A-6 steps: Unicode NFC, casefold, whitespace collapse, trim.
+Matching is whole-phrase equality of lookup keys. There is no token matching, substring
+matching, fuzzy matching, semantic matching, embedding matching, LLM matching, or external
+taxonomy or API lookup. A lookup key is derived using only the four approved A-6 steps: Unicode
+NFC, casefold, whitespace collapse, trim.
+
+One further route exists, added by owner decision on 2026-09-26: an owner-approved technology
+category. Where a category is marked substitutable, holding a peer member earns reduced credit
+and the match names the tool actually held, never the one requested; the gap is raised as well,
+so reduced credit can never be read as the requested tool. Where a category is marked
+non-substitutable, such as a programming language, a peer earns nothing and raises
+CORE_LANGUAGE_GAP. Category membership is still whole-phrase: nothing is inferred, and credit
+requires the candidate to hold a member in the approved dossier at a disclosed tier.
 
 Every match carries the nine audit values `TechnologyMatch` requires, so an undisclosed match
 is unconstructable (E-5). Best tier wins (E-3). A required technology with no evidence scores
@@ -19,7 +27,7 @@ to the dimension (A-7), and preferred extraction is deferred.
 
 import unicodedata
 
-from careerops.config.schema import TechnologyNormalizationPolicy
+from careerops.config.schema import TechnologyCategories, TechnologyNormalizationPolicy
 from careerops.domain.assessment import (
     PARTIAL_CREDIT_TIERS,
     TechnologyGap,
@@ -129,10 +137,34 @@ def _best(candidates: list[CandidateTerm]) -> CandidateTerm:
     return min(candidates, key=lambda entry: REQUIRED_SLOT_TIER_ORDER.index(entry.tier))
 
 
+def _substitute(
+    phrase: str,
+    categories: TechnologyCategories | None,
+    terms: tuple[CandidateTerm, ...],
+) -> tuple[CandidateTerm, str, bool] | None:
+    """Find a peer tool the candidate holds in the same owner-approved category.
+
+    Returns the best peer, the category name, and whether that category is substitutable.
+    A non-substitutable category still reports its peer, because "you know Python, they want
+    Rust" is a more useful statement than "no evidence" - it just earns no credit.
+    """
+    if categories is None:
+        return None
+    category = categories.category_for(lookup_key(phrase))
+    if category is None:
+        return None
+    member_keys = {lookup_key(name) for name in category.members}
+    peers = [entry for entry in terms if lookup_key(entry.term) in member_keys]
+    if not peers:
+        return None
+    return _best(peers), category.name, category.substitutable
+
+
 def match_technologies(
     required_technologies: tuple[str, ...],
     terms: tuple[CandidateTerm, ...],
     normalization: TechnologyNormalizationPolicy,
+    categories: TechnologyCategories | None = None,
 ) -> tuple[tuple[TechnologyMatch, ...], tuple[TechnologyGap, ...]]:
     """Match required technologies to candidate evidence, with tier and audit trail.
 
@@ -165,6 +197,37 @@ def match_technologies(
 
         evidence = index.get(identifier)
         if evidence is None:
+            peer = _substitute(phrase, categories, terms)
+            if peer is not None:
+                best_peer, category_name, substitutable = peer
+                if substitutable:
+                    matches.append(
+                        TechnologyMatch(
+                            technology=best_peer.term,
+                            raw_job_phrase=phrase,
+                            normalized_job_identifier=identifier,
+                            raw_candidate_evidence_phrase=best_peer.term,
+                            normalized_candidate_identifier=lookup_key(best_peer.term),
+                            match_method=MatchMethod.CATEGORY_SUBSTITUTE,
+                            alias_family_identifier=category_name,
+                            requirement_kind=RequirementKind.REQUIRED,
+                            tier=best_peer.tier,
+                            evidence_reference=best_peer.evidence_reference,
+                        )
+                    )
+                gaps.append(
+                    TechnologyGap(
+                        raw_job_phrase=phrase,
+                        normalized_job_identifier=None,
+                        reason=(
+                            TechnologyGapReason.CATEGORY_SUBSTITUTE_ONLY
+                            if substitutable
+                            else TechnologyGapReason.CORE_LANGUAGE_GAP
+                        ),
+                        best_tier_found=best_peer.tier,
+                    )
+                )
+                continue
             gaps.append(
                 TechnologyGap(
                     raw_job_phrase=phrase,

@@ -14,6 +14,32 @@ their decision identifiers. No release may invent a policy value.
 
 ### Added
 
+- **Technology categories with one boolean.** `substitutable: true` means operating one member
+  transfers to another — a CRM is a CRM — so a requirement met by a peer tool earns reduced
+  credit and the report names the tool actually held. `substitutable: false` means membership
+  transfers nothing: a Rust role requires Rust, and a miss raises `CORE_LANGUAGE_GAP`, a
+  distinct red flag rather than mere absence. Credit is three values: direct 1.0, substitute
+  0.5, none 0.0.
+- **`MatchMethod.CATEGORY_SUBSTITUTE`**, plus `TechnologyGapReason.CORE_LANGUAGE_GAP` and
+  `CATEGORY_SUBSTITUTE_ONLY`. A substitution always emits the gap as well as the credit, so
+  reduced credit can never be read as the requested tool.
+- **Soft salary floor.** No compensation band is a hard blocker and
+  `EXPLICIT_BASE_SALARY_BELOW_80K` is disabled. A low salary scores zero and is reported with
+  its shortfall. `salary_targets` records 70,000 hard floor, 85,000 soft minimum, 120,000
+  market target — none of which blocks.
+- **`market_reference`**, anchored to BLS wage statistics, where every row requires a source URL
+  and an as-of date. Configuration loading rejects an uncited figure: a guess about pay is worse
+  than no figure.
+- **`regional_price_parity`** from BEA 2024, applied *only* when a listing could require
+  relocation. A remote role is earned at the listing's rate and spent at home prices, so
+  adjusting it downward would penalise the strongest offers — the schema refuses a
+  configuration that would.
+- **`careerops.tools.listing_report`** — reads several captures from stdin separated by `===`
+  and prints a ranked comparison with links, technology points, salary position, and the most
+  serious gap first, then per-listing detail.
+- **`docs/VALIDATION_QUEUE.md`** gains VQ-003 (soft floor and raised target, canonical
+  reconciliation open) and VQ-004 (CRM and ticketing experience absent from the dossier).
+
 - **Capture importer** — `careerops.ingest.capture.parse_capture` turns an approved
   `JOB_CAPTURE_TEMPLATE.md` capture into a `NormalizedJob`. Parsing is by labelled field, so no
   line number and no field position is relied on (A-1): sections may be reordered and any

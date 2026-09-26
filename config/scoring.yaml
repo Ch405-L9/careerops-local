@@ -221,6 +221,61 @@ technology_matching_normalization:
     - llm_match
     - external_taxonomy_or_api_lookup
 
+# Technology categories. Owner decision, 2026-09-26, PROVISIONAL.
+#
+# One boolean per category decides everything:
+#
+#   substitutable: true   - operating one member transfers to another. A CRM is a CRM: if you
+#                           have run one, you can run another. A requirement met by a peer tool
+#                           earns REDUCED credit, and the report always names the tool actually
+#                           held, so nothing claims the requested tool.
+#   substitutable: false  - membership transfers nothing. A Rust role needs Rust; knowing Python
+#                           does not get you there, and it cannot be learned on the fly for the
+#                           application. A miss here is a distinct red flag, not mere absence.
+#
+# `members` are the job-side names the category recognizes. Listing a name here is NOT candidate
+# evidence: credit still requires the candidate to hold a member, in the approved dossier, at a
+# disclosed tier.
+technology_categories:
+  substitution_credit:
+    direct: 1.00
+    substitute: 0.50
+    none: 0.00
+  categories:
+    - name: CRM_TICKETING
+      substitutable: true
+      note: >-
+        Employee-facing CRM and ticketing systems. All exist to get customer information to a
+        person who can act on it. Operating one transfers to the others.
+      members:
+        - Salesforce
+        - Monday
+        - Monday.com
+        - Freshdesk
+        - Zendesk
+        - Jira Service Management
+        - ServiceNow
+        - HubSpot
+    - name: PROGRAMMING_LANGUAGE
+      substitutable: false
+      note: >-
+        General-purpose programming languages. Market-standard across the industry, and not
+        interchangeable: a language-specific role requires that language.
+      members:
+        - Python
+        - JavaScript
+        - TypeScript
+        - Java
+        - Kotlin
+        - C#
+        - Rust
+        - Go
+        - Ruby
+        - PHP
+        - Swift
+        - Scala
+        - C++
+
 # A-7. Required-primary with preferred informational only, resolving
 # required_vs_preferred_technology_handling. Preferred-technology extraction, its schema,
 # and any capture-template change remain deferred. The compound ALL-OF slot for JS/TS is
