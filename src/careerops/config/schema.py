@@ -8,10 +8,14 @@ Two distinct validation stages, kept separate on purpose:
 2. Readiness validation is a separate, explicit step that fails while any key in
    `REQUIRED_UNRESOLVED_POLICY_KEYS` is still the UNRESOLVED sentinel.
 
-Policy source: docs/SCORING_DECISIONS.md, owner-decision record dated 2026-09-25
-(P-1 through P-6). No assessment behaviour is implemented here.
+Policy source: docs/SCORING_DECISIONS.md, owner-decision records dated 2026-09-25
+(P-1 through P-6) and 2026-09-26 (A-5 through A-7). No assessment behaviour is implemented
+here. The A-5 through A-7 models below validate policy data only: no allocation, no
+normalization of listing or dossier text, and no technology matching is performed.
 """
 
+import re
+import unicodedata
 from collections.abc import Sequence
 from typing import Any, Final, Literal
 
@@ -21,25 +25,36 @@ from careerops.domain import FrozenModel
 from careerops.enums import BlockerCode, MatchClassification, RiskFlag, SalaryCompatibility
 
 __all__ = [
+    "APPROVED_ALIAS_FAMILIES",
+    "APPROVED_ALIAS_FAMILY_COUNT",
+    "APPROVED_ALIAS_VARIANT_COUNT",
+    "APPROVED_CANONICAL_TECHNOLOGIES",
+    "APPROVED_NORMALIZATION_STEPS",
     "APPROVED_REPORT_ORDER",
+    "DEFERRED_ALIAS_VARIANTS",
     "REQUIRED_UNRESOLVED_POLICY_KEYS",
     "UNRESOLVED",
+    "AliasFamily",
     "AssessmentConfig",
     "AssessmentPolicyUnresolvedError",
     "BlockerConfig",
     "BlockerRule",
+    "CanonicalTechnology",
     "ClassificationBand",
     "ClassificationThresholds",
     "CompensationBand",
     "CompensationConfig",
     "EvidenceTierWeights",
     "ReportDisplayPolicy",
+    "RequiredPreferredPolicy",
     "RiskFlagConfig",
     "RiskFlagRule",
     "ScoringConfig",
     "SeniorScopeRule",
     "SeniorityBand",
     "SeniorityBands",
+    "TechnologyAllocationPolicy",
+    "TechnologyNormalizationPolicy",
     "Unresolved",
 ]
 
@@ -68,16 +83,19 @@ MIN_SCORE: Final = 0
 MAX_SCORE: Final = 100
 
 REQUIRED_UNRESOLVED_POLICY_KEYS: Final[tuple[str, ...]] = (
-    "technology_base_credit_allocation",
-    "technology_matching_normalization",
-    "required_vs_preferred_technology_handling",
     "seniority_band_selection_precedence",
     "compensation_range_selection_rule",
     "critical_unknown_detection_rule",
     "score_rounding_rule",
     "report_and_cli_score_display_scope",
 )
-"""Policy decisions that gate assessment readiness. Order is the approved order."""
+"""Policy decisions that gate assessment readiness. Order is the approved order.
+
+Reduced from eight to five by the 2026-09-26 owner-decision record, which resolved
+`technology_base_credit_allocation` (A-5), `technology_matching_normalization` (A-6), and
+`required_vs_preferred_technology_handling` (A-7). Those three are now typed policy blocks
+on `ScoringConfig`. Readiness remains blocked by the five keys above.
+"""
 
 APPROVED_SENIORITY_POINTS: Final[tuple[int, ...]] = (15, 11, 7, 3, 0)
 """P-3 point bands, in descending order."""
@@ -117,6 +135,91 @@ SCORED_CLASSIFICATIONS: Final[frozenset[MatchClassification]] = frozenset(
     }
 )
 """INSUFFICIENT_EVIDENCE is excluded: it is reachable only through the C-4 cap."""
+
+APPROVED_ALLOCATION_DIMENSION: Final = "verified_technical_skill_alignment"
+"""A-5: the only dimension the allocation formula may score."""
+
+APPROVED_NORMALIZATION_STEPS: Final[tuple[str, ...]] = (
+    "nfc",
+    "casefold",
+    "collapse_whitespace",
+    "trim",
+)
+"""A-6: the only permitted lookup-key derivation steps, in order.
+
+No punctuation stripping, version stripping, acronym expansion, token matching, substring
+matching, fuzzy matching, semantic matching, embedding matching, LLM matching, external
+taxonomy lookup, or API lookup is permitted.
+"""
+
+APPROVED_CANONICAL_TECHNOLOGIES: Final[tuple[tuple[str, str], ...]] = (
+    ("REACT", "React"),
+    ("REST_APIS", "REST APIs"),
+    ("MCP", "MCP"),
+    ("RAG", "RAG"),
+    ("CHROMADB", "ChromaDB"),
+    ("BM25", "BM25"),
+    ("PYTHON", "Python"),
+    ("SQLITE", "SQLite"),
+    ("BASH", "Bash"),
+)
+"""A-6 canonical identifiers paired with their single approved display name.
+
+Identifiers are internal. Human-facing output uses the display name. `CRON` is deliberately
+absent: the owner deferred it.
+"""
+
+APPROVED_ALIAS_FAMILIES: Final[tuple[tuple[str, tuple[str, ...]], ...]] = (
+    ("REACT", ("react.js", "reactjs")),
+    ("REST_APIS", ("rest api", "rest apis", "restful api", "restful apis")),
+    ("MCP", ("model context protocol",)),
+    ("RAG", ("retrieval-augmented generation", "retrieval augmented generation")),
+    ("CHROMADB", ("chroma",)),
+    ("BM25", ("okapi bm25",)),
+    ("PYTHON", ("python 3", "python3")),
+    ("SQLITE", ("sqlite3",)),
+    ("BASH", ("bash shell",)),
+)
+"""A-6 initial approved alias registry: variant lookup key to canonical identifier.
+
+Rows are one-way. A canonical identifier may exist for a technology absent from candidate
+evidence; a requirement normalizing to it simply finds no evidence and raises
+REQUIRED_SKILL_GAP under A-5.
+"""
+
+APPROVED_ALIAS_FAMILY_COUNT: Final = 9
+APPROVED_ALIAS_VARIANT_COUNT: Final = 15
+
+DEFERRED_ALIAS_VARIANTS: Final[frozenset[str]] = frozenset(
+    {
+        "crontab",
+        "openssh",
+        "js/ts",
+        "javascript/typescript",
+        "js",
+        "ts",
+        "react native",
+        "ubuntu",
+        "vector database",
+    }
+)
+"""A-6 variant lookup keys the owner explicitly deferred. None may appear in a family."""
+
+CANONICAL_ID_PATTERN: Final = re.compile(r"^[A-Z][A-Z0-9_]*$")
+"""A-6 canonical identifiers are uppercase-snake."""
+
+BARE_ACRONYM_LENGTH: Final = 2
+"""A-6: no bare two-letter acronym becomes an alias. `TS` also denotes Top Secret."""
+
+
+def _lookup_key(value: str) -> str:
+    """Derive a lookup key using only the four approved A-6 steps, in order.
+
+    Exists solely to validate that shipped alias variants are already normalized. No
+    listing text and no dossier text is normalized here, and no technology matching is
+    performed: matching remains unimplemented, separately approved work.
+    """
+    return " ".join(unicodedata.normalize("NFC", value).casefold().split())
 
 
 class AssessmentPolicyUnresolvedError(RuntimeError):
@@ -249,14 +352,287 @@ class ReportDisplayPolicy(FrozenModel):
         return self
 
 
+class TechnologyAllocationPolicy(FrozenModel):
+    """A-5 required-only conservative allocation. Policy data only; nothing is computed.
+
+    points = 20 x (sum of required-slot best-tier multipliers) / number of required slots,
+    when there is at least one required slot; 0 when there are none. Preferred technologies
+    never enter the numerator or the denominator. The result stays exact and unrounded:
+    rounding remains the unresolved `score_rounding_rule` key.
+    """
+
+    dimension: str
+    allocation: Literal["required_only_conservative"]
+    zero_required_slots_points: int
+    preferred_in_numerator: bool
+    preferred_in_denominator: bool
+    unrecognized_required_term_credit: float
+    unrecognized_required_term_stays_in_denominator: bool
+    numerator_source: Literal["structured_technology_fields_only"]
+    prose_token_scanning: bool
+    rounding: Literal["deferred_to_score_rounding_rule"]
+
+    @model_validator(mode="after")
+    def _check_policy(self) -> "TechnologyAllocationPolicy":
+        if self.dimension != APPROVED_ALLOCATION_DIMENSION:
+            raise ValueError(
+                f"allocation dimension must be {APPROVED_ALLOCATION_DIMENSION!r} (E-1), "
+                f"got {self.dimension!r}"
+            )
+        if self.zero_required_slots_points != 0:
+            raise ValueError("zero required slots must score 0 points under A-5")
+        if self.preferred_in_numerator or self.preferred_in_denominator:
+            raise ValueError(
+                "A-5: preferred technologies never enter the numerator or the denominator"
+            )
+        if self.unrecognized_required_term_credit != 0.0:
+            raise ValueError("an unrecognized required term receives zero credit under A-5")
+        if not self.unrecognized_required_term_stays_in_denominator:
+            raise ValueError(
+                "A-5: an unrecognized required term stays in the denominator and is never "
+                "silently ignored"
+            )
+        if self.prose_token_scanning:
+            raise ValueError("A-5: raw listing prose is never token-scanned for score")
+        return self
+
+
+class CanonicalTechnology(FrozenModel):
+    """One A-6 canonical identifier and its single approved display name."""
+
+    id: str
+    display_name: str
+
+    @model_validator(mode="after")
+    def _check_identifier(self) -> "CanonicalTechnology":
+        if CANONICAL_ID_PATTERN.match(self.id) is None:
+            raise ValueError(
+                f"canonical identifier must be uppercase-snake, got {self.id!r}"
+            )
+        if not self.display_name.strip():
+            raise ValueError(f"{self.id}: a canonical identifier requires a display name")
+        return self
+
+
+class AliasFamily(FrozenModel):
+    """One A-6 alias family: variant lookup keys mapping one-way to a canonical identifier.
+
+    Every family requires an approval date and a short owner-approved defense statement
+    explaining why each member is the same technology rather than a related one.
+    """
+
+    canonical_id: str
+    approval_date: str
+    defense: str
+    variants: tuple[str, ...]
+
+    @model_validator(mode="after")
+    def _check_family(self) -> "AliasFamily":
+        if CANONICAL_ID_PATTERN.match(self.canonical_id) is None:
+            raise ValueError(
+                f"canonical identifier must be uppercase-snake, got {self.canonical_id!r}"
+            )
+        if not self.approval_date.strip():
+            raise ValueError(f"{self.canonical_id}: alias family requires an approval date")
+        if not self.defense.strip():
+            raise ValueError(
+                f"{self.canonical_id}: alias family requires a defense statement"
+            )
+        if not self.variants:
+            raise ValueError(f"{self.canonical_id}: alias family requires variants")
+        if len(set(self.variants)) != len(self.variants):
+            raise ValueError(f"{self.canonical_id}: duplicate variant in alias family")
+        for variant in self.variants:
+            if variant != _lookup_key(variant):
+                raise ValueError(
+                    f"{self.canonical_id}: alias variant {variant!r} is not already a "
+                    "normalized lookup key under the four approved steps"
+                )
+            if len(variant) == BARE_ACRONYM_LENGTH and variant.isalpha():
+                raise ValueError(
+                    f"{self.canonical_id}: no bare two-letter acronym may become an alias, "
+                    f"got {variant!r}"
+                )
+            if variant in DEFERRED_ALIAS_VARIANTS:
+                raise ValueError(
+                    f"{self.canonical_id}: alias variant {variant!r} is explicitly deferred "
+                    "and may not be used"
+                )
+        return self
+
+
+class TechnologyNormalizationPolicy(FrozenModel):
+    """A-6 controlled alias families with review queue. Policy data only.
+
+    Candidate-side compound and parenthetical parsing is deferred, so no dossier phrase is
+    parsed or normalized here. No matching is performed.
+    """
+
+    normalization_steps: tuple[str, ...]
+    whole_phrase_only: bool
+    alias_direction: Literal["variant_to_canonical"]
+    unknown_alias_auto_match: bool
+    bare_two_letter_aliases_allowed: bool
+    candidate_side_compound_parsing: Literal["deferred"]
+    unknown_term_handling: Literal["report_section_only"]
+    persistent_review_queue: bool
+    canonical_technologies: tuple[CanonicalTechnology, ...]
+    alias_families: tuple[AliasFamily, ...]
+    deferred_alias_variants: tuple[str, ...]
+    deferred_alias_mappings: tuple[str, ...]
+    deferred_alias_categories: tuple[str, ...]
+
+    @model_validator(mode="after")
+    def _check_mechanics(self) -> "TechnologyNormalizationPolicy":
+        if self.normalization_steps != APPROVED_NORMALIZATION_STEPS:
+            raise ValueError(
+                "normalization steps must be exactly "
+                f"{list(APPROVED_NORMALIZATION_STEPS)}, got {list(self.normalization_steps)}"
+            )
+        if not self.whole_phrase_only:
+            raise ValueError("A-6: alias matching is whole-phrase only")
+        if self.unknown_alias_auto_match:
+            raise ValueError("A-6: unknown aliases never auto-match")
+        if self.bare_two_letter_aliases_allowed:
+            raise ValueError("A-6: no bare two-letter acronym becomes an alias")
+        if self.persistent_review_queue:
+            raise ValueError("A-6: no persistent review queue is added; persistence is barred")
+        return self
+
+    @model_validator(mode="after")
+    def _check_registry(self) -> "TechnologyNormalizationPolicy":
+        ids = [entry.id for entry in self.canonical_technologies]
+        if len(set(ids)) != len(ids):
+            raise ValueError("duplicate canonical identifier in the display-name registry")
+        known = set(ids)
+        seen: dict[str, str] = {}
+        for family in self.alias_families:
+            if family.canonical_id not in known:
+                raise ValueError(
+                    f"alias family targets {family.canonical_id!r}, which has no approved "
+                    "display name"
+                )
+            for variant in family.variants:
+                if variant in seen:
+                    raise ValueError(
+                        f"alias variant {variant!r} maps to both {seen[variant]!r} and "
+                        f"{family.canonical_id!r}"
+                    )
+                seen[variant] = family.canonical_id
+        targets = [family.canonical_id for family in self.alias_families]
+        if len(set(targets)) != len(targets):
+            raise ValueError("duplicate canonical identifier across alias families")
+        return self
+
+    @model_validator(mode="after")
+    def _check_approved_sets(self) -> "TechnologyNormalizationPolicy":
+        documented = tuple(
+            (entry.id, entry.display_name) for entry in self.canonical_technologies
+        )
+        if documented != APPROVED_CANONICAL_TECHNOLOGIES:
+            raise ValueError(
+                "canonical technologies must be the approved identifier and display-name "
+                f"registry, got {[list(pair) for pair in documented]}"
+            )
+        families = tuple(
+            (family.canonical_id, family.variants) for family in self.alias_families
+        )
+        if families != APPROVED_ALIAS_FAMILIES:
+            raise ValueError(
+                "alias families must be the approved initial registry, got "
+                f"{[family[0] for family in families]}"
+            )
+        if len(self.alias_families) != APPROVED_ALIAS_FAMILY_COUNT:
+            raise ValueError(
+                f"alias families must number {APPROVED_ALIAS_FAMILY_COUNT}, "
+                f"got {len(self.alias_families)}"
+            )
+        variant_total = sum(len(family.variants) for family in self.alias_families)
+        if variant_total != APPROVED_ALIAS_VARIANT_COUNT:
+            raise ValueError(
+                f"alias variants must number {APPROVED_ALIAS_VARIANT_COUNT}, "
+                f"got {variant_total}"
+            )
+        if frozenset(self.deferred_alias_variants) != DEFERRED_ALIAS_VARIANTS:
+            raise ValueError(
+                "deferred alias variants must be the approved deferred set, got "
+                f"{sorted(self.deferred_alias_variants)}"
+            )
+        if not self.deferred_alias_mappings:
+            raise ValueError("the approved deferred alias mappings must be recorded")
+        if not self.deferred_alias_categories:
+            raise ValueError("the approved deferred alias categories must be recorded")
+        return self
+
+
+class RequiredPreferredPolicy(FrozenModel):
+    """A-7 required-primary with preferred informational only. Policy data only.
+
+    Preferred-technology extraction, its schema, any capture-template change, and the
+    compound ALL-OF slot are all deferred and unimplemented.
+    """
+
+    required_only_dimension_input: bool
+    preferred_score_effect: Literal["none"]
+    preferred_classification_effect: Literal["none"]
+    preferred_recommendation_effect: Literal["none"]
+    preferred_flag_effect: Literal["none"]
+    preferred_raises_required_skill_gap: bool
+    preferred_evidence_map_required: bool
+    preferred_influences_human_next_action_wording_only: bool
+    no_explicit_required_technologies_points: int
+    any_of_slot_count: int
+    equivalent_may_introduce_new_technology: bool
+    generic_wording_becomes_slot: bool
+    critical_unknown_when_structured_field_yields_no_technology: bool
+    compound_all_of_slot: Literal["deferred"]
+    preferred_extraction: Literal["deferred"]
+
+    @model_validator(mode="after")
+    def _check_policy(self) -> "RequiredPreferredPolicy":
+        if not self.required_only_dimension_input:
+            raise ValueError(
+                "A-7: required technologies are the only input to the technical-alignment "
+                "dimension"
+            )
+        if self.preferred_raises_required_skill_gap:
+            raise ValueError("A-7: preferred technologies never raise REQUIRED_SKILL_GAP")
+        if not self.preferred_evidence_map_required:
+            raise ValueError("A-7: a future report must show a preferred-evidence map")
+        if not self.preferred_influences_human_next_action_wording_only:
+            raise ValueError(
+                "A-7: preferred alignment may influence only Human next action wording"
+            )
+        if self.no_explicit_required_technologies_points != 0:
+            raise ValueError(
+                "A-7: a listing with no explicit required technologies scores 0 in this "
+                "dimension"
+            )
+        if self.any_of_slot_count != 1:
+            raise ValueError('A-7: "X, Y, or equivalent" is exactly one any-of slot')
+        if self.equivalent_may_introduce_new_technology:
+            raise ValueError('A-7: "equivalent" never invents a new technology')
+        if self.generic_wording_becomes_slot:
+            raise ValueError("A-7: generic wording never becomes a technology slot")
+        if not self.critical_unknown_when_structured_field_yields_no_technology:
+            raise ValueError(
+                "A-7: required technologies count as a critical unknown when a structured "
+                "requirement field yields no explicit technology"
+            )
+        return self
+
+
 class ScoringConfig(FrozenModel):
-    """Weighted dimensions plus the approved P-1, P-2, P-3, and P-6 policy."""
+    """Weighted dimensions plus the approved P-1, P-2, P-3, P-6, and A-5 to A-7 policy."""
 
     weights: dict[str, int]
     evidence_tier_weighting: EvidenceTierWeights
     match_classification_thresholds: ClassificationThresholds
     seniority_bands: SeniorityBands
     report_display: ReportDisplayPolicy
+    technology_base_credit_allocation: TechnologyAllocationPolicy
+    technology_matching_normalization: TechnologyNormalizationPolicy
+    required_vs_preferred_technology_handling: RequiredPreferredPolicy
     unresolved_policy: dict[str, Any]
 
     @field_validator("weights")
@@ -470,6 +846,12 @@ class AssessmentConfig(FrozenModel):
             raise ValueError(
                 "the highest compensation band must equal the dimension weight "
                 f"({weights['compensation_compatibility']}), got {compensation_max}"
+            )
+        allocation_dimension = self.scoring.technology_base_credit_allocation.dimension
+        if allocation_dimension not in weights:
+            raise ValueError(
+                f"the A-5 allocation dimension {allocation_dimension!r} is not a scoring "
+                "dimension"
             )
         return self
 

@@ -1,6 +1,7 @@
 # CareerOps Local - deterministic scoring policy.
-# Policy source: docs/SCORING_DECISIONS.md, owner-decision record dated 2026-09-25
-# (P-1 through P-6). That record is the active implementation authority.
+# Policy source: docs/SCORING_DECISIONS.md, owner-decision records dated 2026-09-25
+# (P-1 through P-6) and 2026-09-26 (A-5 through A-7). Those records are the active
+# implementation authority.
 # No scoring, classification, blocker detection, or reporting logic is implemented.
 
 # Nine weighted dimensions. Must total exactly 100.
@@ -80,13 +81,174 @@ report_display:
     - Human next action
   score_never_headline: true
 
+# A-5. Required-only conservative allocation, resolving
+# technology_base_credit_allocation.
+#   points = 20 x (sum of required-slot best-tier multipliers) / number of required slots
+#   when there is at least one required slot; points = 0 when there are none.
+# Required slots are counted only after approved normalization, any-of grouping, and
+# deduplication. Preferred technologies never enter the numerator or the denominator.
+# The result stays exact and unrounded: rounding remains score_rounding_rule.
+# No allocation behaviour is implemented; this block is policy data only.
+technology_base_credit_allocation:
+  dimension: verified_technical_skill_alignment
+  allocation: required_only_conservative
+  zero_required_slots_points: 0
+  preferred_in_numerator: false
+  preferred_in_denominator: false
+  unrecognized_required_term_credit: 0.00
+  unrecognized_required_term_stays_in_denominator: true
+  numerator_source: structured_technology_fields_only
+  prose_token_scanning: false
+  rounding: deferred_to_score_rounding_rule
+
+# A-6. Controlled alias families with review queue, resolving
+# technology_matching_normalization. Lookup keys are derived using only the four steps
+# below. Alias matching is whole-phrase only and one-way, variant to canonical.
+# Candidate-side compound and parenthetical parsing is deferred and is NOT performed:
+# "Model Context Protocol (MCP)", "JavaScript/TypeScript", "Ubuntu/Linux",
+# "Windows 10/11", and course titles are not parsed. No matching behaviour is
+# implemented; this block is policy data only.
+technology_matching_normalization:
+  normalization_steps:
+    - nfc
+    - casefold
+    - collapse_whitespace
+    - trim
+  whole_phrase_only: true
+  alias_direction: variant_to_canonical
+  unknown_alias_auto_match: false
+  bare_two_letter_aliases_allowed: false
+  candidate_side_compound_parsing: deferred
+  unknown_term_handling: report_section_only
+  persistent_review_queue: false
+  canonical_technologies:
+    - id: REACT
+      display_name: 'React'
+    - id: REST_APIS
+      display_name: 'REST APIs'
+    - id: MCP
+      display_name: 'MCP'
+    - id: RAG
+      display_name: 'RAG'
+    - id: CHROMADB
+      display_name: 'ChromaDB'
+    - id: BM25
+      display_name: 'BM25'
+    - id: PYTHON
+      display_name: 'Python'
+    - id: SQLITE
+      display_name: 'SQLite'
+    - id: BASH
+      display_name: 'Bash'
+  alias_families:
+    - canonical_id: REACT
+      approval_date: '2026-09-26'
+      defense: 'Spelling variants of the identical library; dossier verifies React'
+      variants:
+        - 'react.js'
+        - 'reactjs'
+    - canonical_id: REST_APIS
+      approval_date: '2026-09-26'
+      defense: 'Grammatical and plural variants; dossier verifies REST APIs'
+      variants:
+        - 'rest api'
+        - 'rest apis'
+        - 'restful api'
+        - 'restful apis'
+    - canonical_id: MCP
+      approval_date: '2026-09-26'
+      defense: 'Dossier pairs the expansion and the acronym verbatim'
+      variants:
+        - 'model context protocol'
+    - canonical_id: RAG
+      approval_date: '2026-09-26'
+      defense: 'Expansion of a verified acronym; positioning statement uses "retrieval-augmented systems"'
+      variants:
+        - 'retrieval-augmented generation'
+        - 'retrieval augmented generation'
+    - canonical_id: CHROMADB
+      approval_date: '2026-09-26'
+      defense: 'Vendor short form of the identical product'
+      variants:
+        - 'chroma'
+    - canonical_id: BM25
+      approval_date: '2026-09-26'
+      defense: 'Formal name of the identical ranking function'
+      variants:
+        - 'okapi bm25'
+    - canonical_id: PYTHON
+      approval_date: '2026-09-26'
+      defense: 'Version-qualified form; no generational split in the verified skill'
+      variants:
+        - 'python 3'
+        - 'python3'
+    - canonical_id: SQLITE
+      approval_date: '2026-09-26'
+      defense: 'Version-qualified form of the identical embedded database'
+      variants:
+        - 'sqlite3'
+    - canonical_id: BASH
+      approval_date: '2026-09-26'
+      defense: 'Qualified form of the identical shell'
+      variants:
+        - 'bash shell'
+  # Variant lookup keys the owner explicitly deferred. None may appear above.
+  deferred_alias_variants:
+    - 'crontab'
+    - 'openssh'
+    - 'js/ts'
+    - 'javascript/typescript'
+    - 'js'
+    - 'ts'
+    - 'react native'
+    - 'ubuntu'
+    - 'vector database'
+  # Mappings recorded as deferred so they cannot be reintroduced as aliases.
+  deferred_alias_mappings:
+    - 'RAG -> LangChain'
+    - 'MCP -> Azure OpenAI'
+  # Alias kinds that are never permitted.
+  deferred_alias_categories:
+    - broad_category
+    - related_technology
+    - capability_phrase
+    - hierarchy
+    - implication
+    - protocol_implementation_pair
+    - fuzzy_match
+    - semantic_match
+    - embedding_match
+    - llm_match
+    - external_taxonomy_or_api_lookup
+
+# A-7. Required-primary with preferred informational only, resolving
+# required_vs_preferred_technology_handling. Preferred-technology extraction, its schema,
+# and any capture-template change remain deferred. The compound ALL-OF slot for JS/TS is
+# recorded as policy and is not implemented. No behaviour is implemented; this block is
+# policy data only.
+required_vs_preferred_technology_handling:
+  required_only_dimension_input: true
+  preferred_score_effect: none
+  preferred_classification_effect: none
+  preferred_recommendation_effect: none
+  preferred_flag_effect: none
+  preferred_raises_required_skill_gap: false
+  preferred_evidence_map_required: true
+  preferred_influences_human_next_action_wording_only: true
+  no_explicit_required_technologies_points: 0
+  any_of_slot_count: 1
+  equivalent_may_introduce_new_technology: false
+  generic_wording_becomes_slot: false
+  critical_unknown_when_structured_field_yields_no_technology: true
+  compound_all_of_slot: deferred
+  preferred_extraction: deferred
+
 # Policy decisions required before any deterministic assessment behaviour may be
 # implemented or executed. Structural loading succeeds; readiness validation fails
 # while any value below is UNRESOLVED. No value may be invented.
+# A-5, A-6, and A-7 were resolved by the 2026-09-26 owner-decision record and are no
+# longer listed here; five keys remain.
 unresolved_policy:
-  technology_base_credit_allocation: UNRESOLVED
-  technology_matching_normalization: UNRESOLVED
-  required_vs_preferred_technology_handling: UNRESOLVED
   seniority_band_selection_precedence: UNRESOLVED
   compensation_range_selection_rule: UNRESOLVED
   critical_unknown_detection_rule: UNRESOLVED

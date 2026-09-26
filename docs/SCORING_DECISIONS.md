@@ -266,9 +266,10 @@ unresolved-key gate. The Phase 1A standing section earlier in this file is retai
 historical context; it is labelled superseded only where this record explicitly governs.
 
 Resolving A-3 and A-4 **does not unblock assessment implementation.** Eight new policy keys
-now gate readiness (see "Unresolved policy keys" below). No scoring, blocker detection,
-classification, report rendering, ingestion, persistence, or external behaviour may be
-implemented or executed while any of those keys remains unresolved.
+gated readiness as of this record; three were later resolved by the 2026-09-26 A-5 through A-7
+record, leaving the five listed under "Unresolved policy keys" below. No scoring, blocker
+detection, classification, report rendering, ingestion, persistence, or external behaviour may
+be implemented or executed while any of those keys remains unresolved.
 
 ## P-1 — Evidence-tier weighting (resolves A-4)
 
@@ -393,17 +394,283 @@ first sentence.
 
 ## Unresolved policy keys
 
-These eight keys gate assessment readiness. Structural configuration loading succeeds; full
+> **Reduced on 2026-09-26 by the owner-decision record below.** Three of the original eight
+> keys are now resolved: `technology_base_credit_allocation` (A-5),
+> `technology_matching_normalization` (A-6), and
+> `required_vs_preferred_technology_handling` (A-7). The active gate is the five-key set in
+> "Remaining unresolved policy keys after A-5 through A-7" within that record, and the list
+> below has been reduced to match it.
+
+These five keys gate assessment readiness. Structural configuration loading succeeds; full
 readiness validation fails and lists every key below, in this order.
 
-1. technology_base_credit_allocation
-2. technology_matching_normalization
-3. required_vs_preferred_technology_handling
-4. seniority_band_selection_precedence
-5. compensation_range_selection_rule
-6. critical_unknown_detection_rule
-7. score_rounding_rule
-8. report_and_cli_score_display_scope
+1. seniority_band_selection_precedence
+2. compensation_range_selection_rule
+3. critical_unknown_detection_rule
+4. score_rounding_rule
+5. report_and_cli_score_display_scope
+
+No deterministic assessment behaviour may be added or executed while any key above remains
+unresolved. No value may be invented.
+
+---
+
+# Owner-Decision Record — Technology Matching Policy A-5 through A-7
+
+**Status:** approved
+**Date:** 2026-09-26
+**Owner:** Anthony Grant
+
+## Standing of this record (A-5 through A-7)
+
+This record resolves the first three gate keys listed in the P-1 through P-6 owner-decision
+record: `technology_base_credit_allocation` (A-5), `technology_matching_normalization` (A-6),
+and `required_vs_preferred_technology_handling` (A-7).
+
+It **does not supersede or modify any canonical Markdown file.** `PROJECT_GUARDRAILS.md`,
+`PROMPT_PHASE_0.md`, `README.md`, `JOB_CAPTURE_TEMPLATE.md`, `CONTEXT_UPDATE_PROTOCOL.md`,
+`CANONICAL_CANDIDATE_DOSSIER.md`, `CANONICAL_BADGR_BUSINESS_CONTEXT.md`, and
+`CANONICAL_CONFLICTS_AND_UNKNOWNS.md` are unchanged.
+No canonical Markdown source is changed or superseded by this record.
+Future canonical reconciliation requires a separate approved patch under
+`CONTEXT_UPDATE_PROTOCOL.md`.
+
+This record is the **active implementation authority** for A-5 through A-7 and for the
+remaining-key gate. The Phase 1A standing section is retained as historical context. The
+P-1 through P-6 record remains the active authority for P-1 through P-6; only its
+unresolved-key section is superseded, and it is labelled accordingly.
+
+Resolving A-5 through A-7 **does not unblock assessment implementation.** Five policy keys
+continue to gate readiness. No scoring, blocker detection, classification, report rendering,
+ingestion, persistence, or external behaviour may be implemented or executed while any of
+those keys remains unresolved. No assessment behaviour is authorized by this record.
+
+No rounding rule is established here; rounding remains `score_rounding_rule`. No general
+critical-unknown rule is established here; A-7 defines only when the required-technologies
+input counts as unknown. No new `RiskFlag` or `BlockerCode` member is created; both sets
+remain parity-locked to `PROJECT_GUARDRAILS.md`.
+
+## A-5 — Technology base credit allocation
+
+Approved approach: required-only conservative allocation.
+
+### Approved allocation formula
+
+Let `R` be the set of required technology slots, with `n = |R|`. Let `m(r)` be the best-tier
+multiplier for slot `r`, drawn from the approved P-1 multiplier table, and equal to `0.00`
+where no evidence exists.
+
+    points = 20 × ( sum of required-slot best-tier multipliers ) / n     when n >= 1
+    points = 0                                                          when n = 0
+
+Required slots are determined only after approved normalization, any-of grouping, and
+deduplication.
+
+Preferred technologies never enter the numerator or the denominator.
+
+The score remains exact and unrounded until `score_rounding_rule` is separately resolved.
+
+### Approved required-slot credit and gap rules
+
+- A required technology with no evidence receives 0 and raises `REQUIRED_SKILL_GAP`.
+- A required technology supported only by Tier 2 or Tier 4 receives partial credit and raises
+  `REQUIRED_SKILL_GAP`. Credit and flags are decoupled: partial credit never suppresses the
+  gap.
+- A Tier 3 technology receives its approved multiplier unless it would require a prohibited
+  inference.
+- Best tier wins: a slot's multiplier is the maximum over every matching evidence tier.
+- Zero required technologies yields 0 of 20, but that fact alone never produces `AVOID` or
+  `DO_NOT_APPLY`.
+- Long required lists dilute credit proportionally; no extra penalty is added.
+
+### Approved score-eligibility rule
+
+Only structured technology fields are eligible for the technology-score numerator and
+denominator. Raw listing prose is never token-scanned for score.
+
+## A-6 — Technology matching normalization
+
+Approved approach: controlled alias families with review queue.
+
+### Approved normalization mechanics
+
+Lookup keys are normalized using only Unicode NFC normalization, casefolding, whitespace
+collapse, and trim.
+
+There is no automatic punctuation stripping, version stripping, acronym expansion, token
+matching, substring matching, fuzzy matching, semantic matching, embedding matching, LLM
+matching, external taxonomy lookup, or API lookup.
+
+Alias matching is whole-phrase only. Alias rows are one-way: variant to canonical identifier.
+Unknown aliases never auto-match.
+
+No bare two-letter acronym becomes an alias.
+
+### Approved scope of alias application
+
+Aliases apply only to future structured technology fields and to explicitly represented
+candidate evidence terms.
+
+**Candidate-side compound and parenthetical parsing is deferred.** This record does not
+normalize, and does not claim to normalize, any compound or parenthetical candidate phrase.
+Parsing of the following is explicitly deferred and must not be implemented:
+
+- `Model Context Protocol (MCP)`
+- `JavaScript/TypeScript`
+- `Ubuntu/Linux`
+- `Windows 10/11`
+- course titles, for Tier 4 evidence
+
+Consequently, a canonical identifier below becomes reachable on the candidate side only once
+that technology exists as an explicitly represented candidate evidence term. Until then a
+matching job requirement finds no evidence and is handled by the A-5 no-evidence rule. No
+inference fills that gap.
+
+### Approved prohibited-inference protection
+
+A canonical alias target is **not** rejected merely because that technology is currently
+absent from candidate evidence. A canonical identifier may exist for a technology the dossier
+does not contain; a job requirement normalizing to it simply finds no evidence, receives 0,
+and raises `REQUIRED_SKILL_GAP`.
+
+Instead, any alias that attempts to create unsupported candidate evidence from a broader
+category, related technology, capability phrase, or implication is rejected. A broader
+category, adjacent technology, protocol/implementation distinction, capability phrase,
+hierarchy, or implication may not be converted into a target technology through an alias.
+
+A future approved candidate-evidence update may directly add a technology currently absent
+from the dossier without changing the alias framework.
+
+This protection is a human judgment applied when approving each alias family. It is not a
+load-time check, and no automated validator is claimed to enforce it.
+
+### Approved canonical identifiers and display names
+
+Canonical identifiers are internal, stable, uppercase-snake, one display name each.
+Human-facing output uses the approved display name; an identifier is never displayed alone.
+
+| Canonical identifier | Display name |
+|---|---|
+| `REACT` | React |
+| `REST_APIS` | REST APIs |
+| `MCP` | MCP |
+| `RAG` | RAG |
+| `CHROMADB` | ChromaDB |
+| `BM25` | BM25 |
+| `PYTHON` | Python |
+| `SQLITE` | SQLite |
+| `BASH` | Bash |
+
+Nine canonical identifiers. `CRON` is not added in this record.
+
+### Approved alias registry
+
+Nine alias families, fifteen variant lookup keys, nine canonical identifiers. Matching is
+exact and whole-phrase.
+
+| Canonical identifier | Variant lookup keys |
+|---|---|
+| `REACT` | `react.js`, `reactjs` |
+| `REST_APIS` | `rest api`, `rest apis`, `restful api`, `restful apis` |
+| `MCP` | `model context protocol` |
+| `RAG` | `retrieval-augmented generation`, `retrieval augmented generation` |
+| `CHROMADB` | `chroma` |
+| `BM25` | `okapi bm25` |
+| `PYTHON` | `python 3`, `python3` |
+| `SQLITE` | `sqlite3` |
+| `BASH` | `bash shell` |
+
+Every alias family requires an approval date and a short owner-approved defense statement.
+
+### Explicitly deferred aliases
+
+- `crontab -> CRON`
+- `openssh -> SSH`
+- `JS/TS`
+- `javascript/typescript`
+- bare `js`
+- bare `ts`
+- `react native -> React`
+- `ubuntu -> Linux`
+- `vector database -> ChromaDB`
+- `RAG -> LangChain`
+- `MCP -> Azure OpenAI`
+- any broad category, related technology, capability phrase, hierarchy, implication,
+  protocol/implementation pair, fuzzy match, semantic match, embedding match, LLM match, or
+  external taxonomy or API lookup
+
+### Approved unknown required-term rule
+
+An unrecognized required technology phrase remains a required slot. It receives zero credit.
+It stays in the denominator. It raises `REQUIRED_SKILL_GAP`. It may appear in a future
+owner-review report section. It is never removed from the denominator and never silently
+ignored.
+
+Worked example. Required: Weaviate, Python. Evidence: Python only.
+
+    20 × (0.00 + 1.00) / 2 = 10.00
+
+before rounding. `REQUIRED_SKILL_GAP` applies to Weaviate.
+
+Unknown terms never change score automatically, and no persistent queue is added now. Listing
+a term for owner review changes nothing about the outcome above. A later approved alias
+affects future assessments only; it never retroactively rewrites a completed assessment.
+
+### Approved audit and provenance retention
+
+A future audit model must retain: raw job phrase; normalized job identifier; raw candidate
+evidence phrase; normalized candidate identifier; match method; alias family identifier;
+requirement kind; evidence tier; evidence reference.
+
+Evidence references cite a dossier section label, never a line number.
+
+### Approved compound-slot policy for JS/TS
+
+- `JS/TS` is an ALL-OF compound requirement meaning JavaScript AND TypeScript.
+- It is not an alias-registry row.
+- Its slot multiplier is the minimum multiplier among its component technologies.
+- If a component lacks evidence, the missing component receives zero treatment and
+  `REQUIRED_SKILL_GAP` is raised.
+- The compound-slot schema is deferred. This behaviour must not be implemented; it is
+  recorded as a policy decision requiring a future compound-slot schema.
+
+## A-7 — Required versus preferred technology handling
+
+Approved approach: required-primary with preferred informational only.
+
+### Approved required and preferred treatment
+
+- Required technologies are the only input to the 20-point technical-alignment dimension.
+- Preferred technologies have no score, classification, recommendation, or flag effect.
+- Preferred technologies never raise `REQUIRED_SKILL_GAP`.
+- A future report must show a preferred-evidence map, including matched tier and evidence,
+  and explicit no-evidence entries.
+- Preferred alignment may influence only the narrative wording of Human next action, never
+  any score or enum outcome.
+- A listing with no explicit required technologies scores 0 in the technical-alignment
+  dimension.
+- Required technologies count as a critical unknown only when a structured requirement field
+  exists but yields no explicit technology. Broader critical-unknown behaviour remains
+  unresolved under `critical_unknown_detection_rule`.
+- A listing with only preferred technologies scores 0 in this dimension but still receives a
+  future preferred-evidence map.
+- "X, Y, or equivalent" is one any-of slot. Only explicitly named X or Y may satisfy it;
+  "equivalent" never invents a new technology.
+- Generic wording such as "modern AI tooling", "familiarity with cloud", or "strong technical
+  background" never becomes a technology slot.
+
+Preferred-technology extraction, its schema, and any capture-template change remain deferred.
+
+## Remaining unresolved policy keys after A-5 through A-7
+
+These five keys gate assessment readiness. Structural configuration loading succeeds; full
+readiness validation fails and lists every key below, in this order.
+
+1. seniority_band_selection_precedence
+2. compensation_range_selection_rule
+3. critical_unknown_detection_rule
+4. score_rounding_rule
+5. report_and_cli_score_display_scope
 
 No deterministic assessment behaviour may be added or executed while any key above remains
 unresolved. No value may be invented.

@@ -1,7 +1,8 @@
 """Tests against the shipped configuration in `config/`.
 
-Structural validation must pass. Readiness validation must fail on exactly the two approved
-unresolved keys, and on nothing else.
+Structural validation must pass. Readiness validation must fail on exactly the five approved
+unresolved keys, and on nothing else. A-5 through A-7 removed three keys from that gate on
+2026-09-26 and replaced them with typed policy blocks; no behaviour was added.
 """
 
 from pathlib import Path
@@ -10,7 +11,13 @@ import pytest
 
 from careerops.config.loader import load_assessment_config, load_ready_assessment_config
 from careerops.config.schema import (
+    APPROVED_ALIAS_FAMILIES,
+    APPROVED_ALIAS_FAMILY_COUNT,
+    APPROVED_ALIAS_VARIANT_COUNT,
+    APPROVED_CANONICAL_TECHNOLOGIES,
+    APPROVED_NORMALIZATION_STEPS,
     APPROVED_REPORT_ORDER,
+    DEFERRED_ALIAS_VARIANTS,
     REQUIRED_UNRESOLVED_POLICY_KEYS,
     AssessmentPolicyUnresolvedError,
 )
@@ -54,15 +61,23 @@ def test_shipped_configuration_is_not_ready(config_dir: Path) -> None:
 def test_unresolved_key_set_is_exact(config_dir: Path) -> None:
     """The exact named tuple in the approved order. Never merely a count."""
     assert load_assessment_config(config_dir).unresolved_keys() == (
-        "technology_base_credit_allocation",
-        "technology_matching_normalization",
-        "required_vs_preferred_technology_handling",
         "seniority_band_selection_precedence",
         "compensation_range_selection_rule",
         "critical_unknown_detection_rule",
         "score_rounding_rule",
         "report_and_cli_score_display_scope",
     )
+
+
+def test_resolved_keys_are_absent_from_the_unresolved_gate(config_dir: Path) -> None:
+    """A-5 through A-7: the three resolved keys no longer gate readiness."""
+    gate = load_assessment_config(config_dir).scoring.unresolved_policy
+    for key in (
+        "technology_base_credit_allocation",
+        "technology_matching_normalization",
+        "required_vs_preferred_technology_handling",
+    ):
+        assert key not in gate
 
 
 def test_seniority_dimension_uses_the_approved_name(config_dir: Path) -> None:
@@ -346,20 +361,223 @@ def test_score_appears_at_position_five(config_dir: Path) -> None:
     assert order[1] == "Hard blockers"
 
 
+# ====================================================================== A-5 to A-7
+
+
+def test_shipped_configuration_declares_the_three_resolved_policy_blocks(
+    config_dir: Path,
+) -> None:
+    """The three decisions exist as typed configuration, not as sentinels."""
+    scoring = load_assessment_config(config_dir).scoring
+    assert scoring.technology_base_credit_allocation.allocation == (
+        "required_only_conservative"
+    )
+    assert scoring.technology_matching_normalization.alias_direction == (
+        "variant_to_canonical"
+    )
+    assert scoring.required_vs_preferred_technology_handling.preferred_score_effect == "none"
+
+
+def test_shipped_allocation_policy_is_the_approved_a5_policy(config_dir: Path) -> None:
+    """A-5: preferred technologies enter neither side; rounding stays deferred."""
+    policy = load_assessment_config(config_dir).scoring.technology_base_credit_allocation
+    assert policy.dimension == "verified_technical_skill_alignment"
+    assert policy.zero_required_slots_points == 0
+    assert policy.preferred_in_numerator is False
+    assert policy.preferred_in_denominator is False
+    assert policy.unrecognized_required_term_credit == 0.00
+    assert policy.unrecognized_required_term_stays_in_denominator is True
+    assert policy.numerator_source == "structured_technology_fields_only"
+    assert policy.prose_token_scanning is False
+    assert policy.rounding == "deferred_to_score_rounding_rule"
+
+
+def test_shipped_normalization_steps_are_the_four_approved_steps(config_dir: Path) -> None:
+    """A-6: no punctuation stripping, version stripping, or acronym expansion."""
+    policy = load_assessment_config(config_dir).scoring.technology_matching_normalization
+    assert policy.normalization_steps == APPROVED_NORMALIZATION_STEPS
+    assert policy.normalization_steps == ("nfc", "casefold", "collapse_whitespace", "trim")
+    assert policy.whole_phrase_only is True
+    assert policy.unknown_alias_auto_match is False
+    assert policy.bare_two_letter_aliases_allowed is False
+    assert policy.persistent_review_queue is False
+    assert policy.unknown_term_handling == "report_section_only"
+
+
+def test_shipped_display_name_registry_matches_the_approved_set(config_dir: Path) -> None:
+    """A-6: nine canonical identifiers, one display name each, in the approved order."""
+    policy = load_assessment_config(config_dir).scoring.technology_matching_normalization
+    documented = tuple((e.id, e.display_name) for e in policy.canonical_technologies)
+    assert documented == APPROVED_CANONICAL_TECHNOLOGIES
+    assert documented == (
+        ("REACT", "React"),
+        ("REST_APIS", "REST APIs"),
+        ("MCP", "MCP"),
+        ("RAG", "RAG"),
+        ("CHROMADB", "ChromaDB"),
+        ("BM25", "BM25"),
+        ("PYTHON", "Python"),
+        ("SQLITE", "SQLite"),
+        ("BASH", "Bash"),
+    )
+
+
+def test_cron_is_not_a_canonical_identifier(config_dir: Path) -> None:
+    """The owner deferred crontab -> CRON, so CRON must not ship."""
+    policy = load_assessment_config(config_dir).scoring.technology_matching_normalization
+    assert "CRON" not in {entry.id for entry in policy.canonical_technologies}
+    assert "CRON" not in {family.canonical_id for family in policy.alias_families}
+
+
+def test_shipped_alias_registry_matches_the_approved_set(config_dir: Path) -> None:
+    """A-6: the exact nine families and fifteen variants, never merely a count."""
+    policy = load_assessment_config(config_dir).scoring.technology_matching_normalization
+    documented = tuple((f.canonical_id, f.variants) for f in policy.alias_families)
+    assert documented == APPROVED_ALIAS_FAMILIES
+    assert documented == (
+        ("REACT", ("react.js", "reactjs")),
+        ("REST_APIS", ("rest api", "rest apis", "restful api", "restful apis")),
+        ("MCP", ("model context protocol",)),
+        ("RAG", ("retrieval-augmented generation", "retrieval augmented generation")),
+        ("CHROMADB", ("chroma",)),
+        ("BM25", ("okapi bm25",)),
+        ("PYTHON", ("python 3", "python3")),
+        ("SQLITE", ("sqlite3",)),
+        ("BASH", ("bash shell",)),
+    )
+    assert len(documented) == APPROVED_ALIAS_FAMILY_COUNT == 9
+    assert sum(len(v) for _, v in documented) == APPROVED_ALIAS_VARIANT_COUNT == 15
+
+
+def test_every_shipped_alias_family_carries_approval_date_and_defense(
+    config_dir: Path,
+) -> None:
+    """A-6: an undefended alias family is invalid policy."""
+    policy = load_assessment_config(config_dir).scoring.technology_matching_normalization
+    for family in policy.alias_families:
+        assert family.approval_date == "2026-09-26"
+        assert family.defense.strip()
+
+
+def test_shipped_deferred_alias_variants_are_the_approved_set(config_dir: Path) -> None:
+    """A-6: crontab, openssh, JS/TS, javascript/typescript, bare js and ts, and more."""
+    policy = load_assessment_config(config_dir).scoring.technology_matching_normalization
+    assert frozenset(policy.deferred_alias_variants) == DEFERRED_ALIAS_VARIANTS
+    for variant in ("crontab", "openssh", "js/ts", "javascript/typescript", "js", "ts"):
+        assert variant in policy.deferred_alias_variants
+
+
+def test_no_shipped_alias_variant_is_a_deferred_variant(config_dir: Path) -> None:
+    policy = load_assessment_config(config_dir).scoring.technology_matching_normalization
+    shipped = {v for family in policy.alias_families for v in family.variants}
+    assert not shipped & DEFERRED_ALIAS_VARIANTS
+
+
+def test_candidate_side_compound_parsing_is_deferred(config_dir: Path) -> None:
+    """A-6: no dossier compound or parenthetical phrase is parsed."""
+    policy = load_assessment_config(config_dir).scoring.technology_matching_normalization
+    assert policy.candidate_side_compound_parsing == "deferred"
+
+
+def test_shipped_required_preferred_policy_is_the_approved_a7_policy(
+    config_dir: Path,
+) -> None:
+    """A-7: preferred technologies have no score, classification, or flag effect."""
+    policy = load_assessment_config(
+        config_dir
+    ).scoring.required_vs_preferred_technology_handling
+    assert policy.required_only_dimension_input is True
+    assert policy.preferred_score_effect == "none"
+    assert policy.preferred_classification_effect == "none"
+    assert policy.preferred_recommendation_effect == "none"
+    assert policy.preferred_flag_effect == "none"
+    assert policy.preferred_raises_required_skill_gap is False
+    assert policy.preferred_evidence_map_required is True
+    assert policy.preferred_influences_human_next_action_wording_only is True
+    assert policy.no_explicit_required_technologies_points == 0
+    assert policy.any_of_slot_count == 1
+    assert policy.equivalent_may_introduce_new_technology is False
+    assert policy.generic_wording_becomes_slot is False
+    assert policy.critical_unknown_when_structured_field_yields_no_technology is True
+    assert policy.compound_all_of_slot == "deferred"
+    assert policy.preferred_extraction == "deferred"
+
+
+def test_evidence_tier_multipliers_are_unchanged_by_a5(config_dir: Path) -> None:
+    """A-5 changed no P-1 value."""
+    weights = load_assessment_config(config_dir).scoring.evidence_tier_weighting
+    assert (
+        weights.TIER_1_VERIFIED_SKILL,
+        weights.TIER_2_PROJECT_EVIDENCE,
+        weights.TIER_3_EMPLOYMENT_EVIDENCE,
+        weights.TIER_4_TRAINING,
+    ) == (1.00, 0.70, 0.90, 0.30)
+
+
+def test_dimension_weights_are_unchanged_by_a5(config_dir: Path) -> None:
+    """A-5 scores within the existing 20-point dimension and adds no weight."""
+    config = load_assessment_config(config_dir)
+    assert sum(config.scoring.weights.values()) == 100
+    assert config.scoring.weights["verified_technical_skill_alignment"] == 20
+    assert config.evidence_tier_cap_points() == 20
+
+
+def test_no_alias_target_collides_with_an_enum_member_name(config_dir: Path) -> None:
+    """An alias identifier must never be mistakable for a flag, blocker, or tier."""
+    policy = load_assessment_config(config_dir).scoring.technology_matching_normalization
+    reserved = (
+        {flag.value for flag in RiskFlag}
+        | {code.value for code in BlockerCode}
+        | {tier.value for tier in EvidenceTier}
+        | {band.value for band in SalaryCompatibility}
+        | {label.value for label in MatchClassification}
+    )
+    assert not {entry.id for entry in policy.canonical_technologies} & reserved
+
+
 # ================================================================ no implementation
 
 
-def test_no_assessment_behaviour_is_implemented() -> None:
-    """The gate is meaningless if logic were added alongside the policy."""
-    from careerops.assess import blockers, evidence, risk_flags, scoring
+def test_no_gated_assessment_behaviour_is_implemented() -> None:
+    """Everything behind the five remaining policy keys must still refuse to run.
+
+    `match_technologies` and `score_technology_alignment` are deliberately absent from this
+    list: the owner permitted dimension-level computation of
+    verified_technical_skill_alignment while the gate stands, and they return a
+    `TechnologyAlignmentResult`, which carries no total score, classification, recommendation,
+    or validation status. `assess_job` remains the gated entry point.
+    """
+    from careerops.assess import blockers, risk_flags, scoring
 
     for module, name, arity in (
         (blockers, "detect_blockers", 3),
         (blockers, "degree_requirement_is_blocking", 2),
         (risk_flags, "detect_risk_flags", 3),
-        (evidence, "match_technologies", 2),
         (scoring, "assess_compensation", 2),
         (scoring, "assess_job", 3),
     ):
         with pytest.raises(NotImplementedError):
             getattr(module, name)(*[None] * arity)
+
+
+def test_the_dimension_path_cannot_produce_a_full_assessment() -> None:
+    """Ruling 2, enforced by type: no verdict field exists on the dimension result."""
+    from careerops.domain.assessment import TechnologyAlignmentResult
+
+    fields = set(TechnologyAlignmentResult.model_fields)
+    for forbidden in (
+        "score",
+        "classification",
+        "recommendation",
+        "validation_status",
+        "blockers",
+        "risk_flags",
+        "compensation",
+    ):
+        assert forbidden not in fields
+
+
+def test_readiness_still_gates_the_full_assessment(config_dir: Path) -> None:
+    """Implementing one dimension must not have loosened the five-key gate."""
+    with pytest.raises(AssessmentPolicyUnresolvedError):
+        load_ready_assessment_config(config_dir)

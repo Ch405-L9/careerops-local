@@ -9,9 +9,18 @@ import re
 from pathlib import Path
 
 from careerops.config.loader import load_assessment_config
-from careerops.config.schema import REQUIRED_UNRESOLVED_POLICY_KEYS
+from careerops.config.schema import (
+    APPROVED_ALIAS_FAMILIES,
+    APPROVED_ALIAS_FAMILY_COUNT,
+    APPROVED_ALIAS_VARIANT_COUNT,
+    APPROVED_CANONICAL_TECHNOLOGIES,
+    DEFERRED_ALIAS_VARIANTS,
+    REQUIRED_UNRESOLVED_POLICY_KEYS,
+)
 from careerops.enums import (
+    BlockerCode,
     EvidenceTier,
+    MatchClassification,
     Recommendation,
     RiskFlag,
     SalaryCompatibility,
@@ -135,12 +144,17 @@ def test_no_canonical_document_was_modified(repo_root: Path) -> None:
     )
 
 
-# ============================================================ policy parity (P-1..P-6)
+# ===================================================== policy parity (P-1..P-6, A-5..A-7)
 #
-# Each test below binds a config/*.yaml value to a labelled section of the approved
-# owner-decision record. Line numbers are never parsed. There are exactly seven
-# parity-parsed policy sections; the P-3/P-5 non-equivalence requirement is asserted as
-# decision-record text above, not as an eighth data section.
+# Each test below binds a config/*.yaml value to a labelled section of an approved
+# owner-decision record. Line numbers are never parsed. There are exactly eleven
+# parity-parsed policy data sections: the original six P-1..P-6 sections, the reduced
+# "Unresolved policy keys" section, "Remaining unresolved policy keys after A-5 through
+# A-7", "Approved canonical identifiers and display names", "Approved alias registry",
+# and "Explicitly deferred aliases". Requirements asserted as record text rather than as
+# data sections - the P-3/P-5 non-equivalence, the A-5 formula, the A-6 unknown-term rule,
+# the deferred candidate-side parsing, and the JS/TS compound-slot policy - are checked by
+# the text tests and are not counted here.
 
 NAMED_VALUE = re.compile(r"^- ([A-Z_0-9]+): ([0-9.]+)$", re.MULTILINE)
 NAMED_RANGE = re.compile(r"^- ([A-Z_]+): (\d+)-(\d+)$", re.MULTILINE)
@@ -216,7 +230,221 @@ def test_report_order_matches_the_decision_record(repo_root: Path, config_dir: P
 def test_unresolved_policy_keys_match_the_decision_record(
     repo_root: Path, config_dir: Path
 ) -> None:
+    """A-5..A-7 renamed the live gate section; the old label is now superseded."""
+    section = _section(
+        _record(repo_root), "Remaining unresolved policy keys after A-5 through A-7"
+    )
+    documented = tuple(NUMBERED.findall(section))
+    assert documented == REQUIRED_UNRESOLVED_POLICY_KEYS
+    assert documented == load_assessment_config(config_dir).unresolved_keys()
+
+
+def test_reduced_unresolved_key_section_lists_the_five_remaining_keys(
+    repo_root: Path, config_dir: Path
+) -> None:
+    """The superseded P-1..P-6 gate section was reduced, so no stale eight-key list stands."""
     section = _section(_record(repo_root), "Unresolved policy keys")
     documented = tuple(NUMBERED.findall(section))
     assert documented == REQUIRED_UNRESOLVED_POLICY_KEYS
     assert documented == load_assessment_config(config_dir).unresolved_keys()
+
+
+# ===================================================== technology policy parity (A-5..A-7)
+
+A5_A7_TITLE = "# Owner-Decision Record — Technology Matching Policy A-5 through A-7"
+
+ID_ROW = re.compile(r"^\| `([A-Z][A-Z0-9_]*)` \| (.+?) \|$", re.MULTILINE)
+BACKTICKED_CONSTANT = re.compile(r"`([A-Z][A-Z0-9_]+)`")
+PLAIN_BULLET = re.compile(r"^- (.+?)\s*$", re.MULTILINE)
+
+
+def _a5_a7_record(repo_root: Path) -> str:
+    """Return only the A-5..A-7 record.
+
+    The earlier records repeat many of the same standing sentences, so a whole-file
+    substring test would pass vacuously. `HEADING` matches `#{2,6}` and cannot see an H1,
+    so the slice is taken from the H1 title, which must occur exactly once.
+    """
+    markdown = _record(repo_root)
+    assert markdown.count(A5_A7_TITLE) == 1, "the A-5..A-7 record title must occur once"
+    return markdown[markdown.index(A5_A7_TITLE) :]
+
+
+def test_canonical_display_names_match_the_decision_record(
+    repo_root: Path, config_dir: Path
+) -> None:
+    section = _section(
+        _a5_a7_record(repo_root), "Approved canonical identifiers and display names"
+    )
+    documented = tuple(ID_ROW.findall(section))
+    assert documented == APPROVED_CANONICAL_TECHNOLOGIES
+    policy = load_assessment_config(config_dir).scoring.technology_matching_normalization
+    assert documented == tuple((e.id, e.display_name) for e in policy.canonical_technologies)
+    assert "CRON" not in {identifier for identifier, _ in documented}
+
+
+def test_alias_registry_matches_the_decision_record(
+    repo_root: Path, config_dir: Path
+) -> None:
+    section = _section(_a5_a7_record(repo_root), "Approved alias registry")
+    assert "Every alias family requires an approval date and a short owner-approved" in section
+    documented = tuple(
+        (identifier, tuple(v.strip().strip("`") for v in variants.split(", ")))
+        for identifier, variants in ID_ROW.findall(section)
+    )
+    assert documented == APPROVED_ALIAS_FAMILIES
+    assert len(documented) == APPROVED_ALIAS_FAMILY_COUNT
+    assert sum(len(v) for _, v in documented) == APPROVED_ALIAS_VARIANT_COUNT
+    policy = load_assessment_config(config_dir).scoring.technology_matching_normalization
+    assert documented == tuple((f.canonical_id, f.variants) for f in policy.alias_families)
+
+
+def test_deferred_aliases_match_the_decision_record(repo_root: Path) -> None:
+    """The bullet list is prose, so each deferred variant is checked by presence."""
+    section = _section(_a5_a7_record(repo_root), "Explicitly deferred aliases")
+    bullets = PLAIN_BULLET.findall(section)
+    assert len(bullets) >= len(DEFERRED_ALIAS_VARIANTS)
+    joined = " ".join(section.replace("`", "").split())
+    for variant in DEFERRED_ALIAS_VARIANTS:
+        assert variant in joined.casefold(), f"deferred variant is missing: {variant!r}"
+    for fragment in (
+        "crontab -> CRON",
+        "openssh -> SSH",
+        "JS/TS",
+        "javascript/typescript",
+        "bare js",
+        "bare ts",
+        "react native -> React",
+        "ubuntu -> Linux",
+        "vector database -> ChromaDB",
+        "RAG -> LangChain",
+        "MCP -> Azure OpenAI",
+        "fuzzy match",
+        "semantic match",
+        "embedding match",
+        "LLM match",
+        "external taxonomy or API lookup",
+    ):
+        assert fragment in joined, f"deferred alias list is missing: {fragment!r}"
+
+
+def test_allocation_formula_is_documented(repo_root: Path) -> None:
+    section = _section(_a5_a7_record(repo_root), "Approved allocation formula")
+    for required in (
+        "points = 20 × ( sum of required-slot best-tier multipliers ) / n",
+        "points = 0",
+        "any-of grouping",
+        "deduplication",
+        "never enter the numerator or the denominator",
+        "exact and unrounded",
+        "score_rounding_rule",
+    ):
+        assert required in section, f"allocation formula is missing: {required!r}"
+
+
+def test_unknown_required_term_rule_is_documented(repo_root: Path) -> None:
+    section = _section(_a5_a7_record(repo_root), "Approved unknown required-term rule")
+    for required in (
+        "remains a required slot",
+        "receives zero credit",
+        "stays in the denominator",
+        "REQUIRED_SKILL_GAP",
+        "never silently",
+        "20 × (0.00 + 1.00) / 2 = 10.00",
+        "never retroactively rewrites a completed assessment",
+    ):
+        assert required in section, f"unknown-term rule is missing: {required!r}"
+
+
+def test_candidate_side_parsing_is_documented_as_deferred(
+    repo_root: Path, config_dir: Path
+) -> None:
+    """The owner's required correction: deferred, and never claimed as normalized."""
+    section = _section(_a5_a7_record(repo_root), "Approved scope of alias application")
+    assert "does not claim to normalize" in section
+    assert "explicitly deferred and must not be implemented" in section
+    for case in (
+        "Model Context Protocol (MCP)",
+        "JavaScript/TypeScript",
+        "Ubuntu/Linux",
+        "Windows 10/11",
+        "course titles",
+    ):
+        assert case in section, f"deferred parsing case is missing: {case!r}"
+    policy = load_assessment_config(config_dir).scoring.technology_matching_normalization
+    assert policy.candidate_side_compound_parsing == "deferred"
+
+
+def test_compound_slot_policy_is_documented(repo_root: Path, config_dir: Path) -> None:
+    section = _section(_a5_a7_record(repo_root), "Approved compound-slot policy for JS/TS")
+    for required in (
+        "`JS/TS` is an ALL-OF compound requirement",
+        "JavaScript AND TypeScript",
+        "not an alias-registry row",
+        "minimum multiplier",
+        "REQUIRED_SKILL_GAP",
+        "must not be implemented",
+    ):
+        assert required in section, f"compound-slot policy is missing: {required!r}"
+    policy = load_assessment_config(
+        config_dir
+    ).scoring.required_vs_preferred_technology_handling
+    assert policy.compound_all_of_slot == "deferred"
+
+
+def test_new_record_states_its_standing(repo_root: Path) -> None:
+    """Asserted inside the A-5..A-7 slice: the earlier records repeat these sentences."""
+    record = _a5_a7_record(repo_root)
+    for required in (
+        "**Status:** approved",
+        "**Date:** 2026-09-26",
+        "**Owner:** Anthony Grant",
+        "does not supersede or modify any canonical Markdown file",
+        "No canonical Markdown source is changed or superseded by this record",
+        "active implementation authority",
+        "Five policy keys",
+        "does not unblock assessment implementation",
+        "No assessment behaviour is authorized by this record",
+        "rounding remains `score_rounding_rule`",
+        "`critical_unknown_detection_rule`",
+    ):
+        assert required in record, f"the A-5..A-7 record is missing: {required!r}"
+
+
+def test_superseded_eight_key_section_is_annotated(repo_root: Path) -> None:
+    """The prior live gate section must name this record rather than stand stale."""
+    section = _section(_record(repo_root), "Unresolved policy keys")
+    assert "Reduced on 2026-09-26 by the owner-decision record below" in section
+    assert "Remaining unresolved policy keys after A-5 through A-7" in section
+    assert "These five keys gate assessment readiness" in section
+    assert "These eight keys gate assessment readiness" not in section
+
+
+def test_record_introduces_no_new_risk_flag_or_blocker_code(repo_root: Path) -> None:
+    """A-5..A-7 create no enum member. Guards against PREFERRED_SKILL_GAP or UNKNOWN_TERM."""
+    allowed = (
+        {flag.value for flag in RiskFlag}
+        | {code.value for code in BlockerCode}
+        | {tier.value for tier in EvidenceTier}
+        | {band.value for band in SalaryCompatibility}
+        | {label.value for label in MatchClassification}
+        | {label.value for label in Recommendation}
+        | {status.value for status in ValidationStatus}
+        | {identifier for identifier, _ in APPROVED_CANONICAL_TECHNOLOGIES}
+        | {"CRON", "SSH", "UNRESOLVED"}
+    )
+    found = set(BACKTICKED_CONSTANT.findall(_a5_a7_record(repo_root)))
+    assert found <= allowed, f"undeclared uppercase constants: {sorted(found - allowed)}"
+    assert "PREFERRED_SKILL_GAP" not in found
+    assert "UNKNOWN_TERM" not in found
+
+
+def test_record_does_not_claim_readiness(repo_root: Path) -> None:
+    record = _a5_a7_record(repo_root)
+    for forbidden in (
+        "readiness validation now succeeds",
+        "assessment may proceed",
+        "assessment behaviour may now be implemented",
+        "no keys remain",
+    ):
+        assert forbidden not in record

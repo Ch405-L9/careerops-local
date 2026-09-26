@@ -4,24 +4,77 @@
 `SalaryCompatibility` and `EvidenceTier` are derived from docs/SCORING_DECISIONS.md, the
 owner-approved implementation decision record dated 2026-09-25.
 
-tests/parity/test_canonical_enum_parity.py fails if any of these drift from their source
-document. No enum may be defined or aliased anywhere else in this package.
+`MatchMethod`, `RequirementKind`, and `TechnologyGapReason` are derived from the A-5 through
+A-7 owner-decision record dated 2026-09-26. They have no canonical Markdown source and are
+therefore not parity-bound; binding them would require a new labelled section in that record,
+which is a separate owner decision.
+
+tests/parity/test_canonical_enum_parity.py fails if any parity-bound enum drifts from its
+source document. No enum may be defined or aliased anywhere else in this package.
+
+Every enum below is declared in exactly one of `PARITY_BOUND_ENUMS` or
+`SELF_DECLARED_ENUMS`. tests/unit/test_enums.py fails if a new enum is added without being
+declared, so the distinction can never go silent.
 """
 
 from enum import StrEnum
 
 __all__ = [
+    "PARITY_BOUND_ENUMS",
+    "SELF_DECLARED_ENUMS",
     "BlockerCode",
     "EmploymentType",
     "EvidenceTier",
     "MatchClassification",
+    "MatchMethod",
     "Recommendation",
     "RelocationStatus",
+    "RequirementKind",
     "RiskFlag",
     "SalaryCompatibility",
+    "TechnologyGapReason",
     "ValidationStatus",
     "WorkArrangementType",
 ]
+
+PARITY_BOUND_ENUMS: frozenset[str] = frozenset(
+    {
+        "EvidenceTier",
+        "Recommendation",
+        "RiskFlag",
+        "SalaryCompatibility",
+        "ValidationStatus",
+    }
+)
+"""Enums copied from a labelled section of a source document.
+
+Each has a parity test in tests/parity/test_canonical_enum_parity.py that re-reads that
+section and fails on drift, because the document is the authority and this module is a copy.
+"""
+
+SELF_DECLARED_ENUMS: frozenset[str] = frozenset(
+    {
+        "BlockerCode",
+        "EmploymentType",
+        "MatchClassification",
+        "MatchMethod",
+        "RelocationStatus",
+        "RequirementKind",
+        "TechnologyGapReason",
+        "WorkArrangementType",
+    }
+)
+"""Closed sets fixed here, with no prose list anywhere to drift from.
+
+These are not unbound by oversight. A member set implied by an approved rule has one
+authority, not two: `MatchMethod` has two members because A-6 prohibits every other matching
+route, and `TechnologyGapReason` has four because E-4, E-6, and E-7 produce exactly those.
+Writing a Markdown list purely so a parity test could re-read it would create a second
+authority and buy nothing.
+
+The risk these carry is an undeclared addition, not drift, so each is guarded by an exact
+membership test in tests/unit/test_enums.py instead. Adding a member fails that test.
+"""
 
 
 class ValidationStatus(StrEnum):
@@ -34,7 +87,7 @@ class ValidationStatus(StrEnum):
 
 
 class MatchClassification(StrEnum):
-    """Overall match classification. Thresholds are UNRESOLVED (A-3)."""
+    """Overall match classification. Thresholds are approved (P-2, resolving A-3)."""
 
     STRONG_MATCH = "STRONG_MATCH"
     PLAUSIBLE_MATCH = "PLAUSIBLE_MATCH"
@@ -102,7 +155,7 @@ class EvidenceTier(StrEnum):
     """Provenance tier of a technology match. Source: docs/SCORING_DECISIONS.md, decision D-7.
 
     Reports must disclose which tier produced every technology match. No tier may create an
-    unverified skill. Relative tier weighting is UNRESOLVED (A-4).
+    unverified skill. Relative tier weighting is approved (P-1, resolving A-4).
     """
 
     TIER_1_VERIFIED_SKILL = "TIER_1_VERIFIED_SKILL"
@@ -159,3 +212,47 @@ class RiskFlag(StrEnum):
     RELOCATION_UNKNOWN = "RELOCATION_UNKNOWN"
     REMOTE_RESTRICTION_UNKNOWN = "REMOTE_RESTRICTION_UNKNOWN"
     REQUIRED_SKILL_GAP = "REQUIRED_SKILL_GAP"
+
+
+# --------------------------------------------------------------------------------------
+# Technology matching. Source: docs/SCORING_DECISIONS.md, owner-decision record dated
+# 2026-09-26 (A-5 through A-7). Not parity-bound: no canonical Markdown source exists.
+# --------------------------------------------------------------------------------------
+
+
+class MatchMethod(StrEnum):
+    """How a job phrase reached its canonical technology identifier (A-6).
+
+    These are the only two routes. Token matching, substring matching, fuzzy matching,
+    semantic matching, embedding matching, LLM matching, and external taxonomy or API lookup
+    are all prohibited, so no member exists for them.
+    """
+
+    EXACT = "EXACT"
+    ALIAS = "ALIAS"
+
+
+class RequirementKind(StrEnum):
+    """Whether a listing named a technology as required or preferred (A-7).
+
+    Only REQUIRED enters the verified_technical_skill_alignment dimension. PREFERRED has no
+    score, classification, recommendation, or flag effect and never raises a skill gap.
+    """
+
+    REQUIRED = "REQUIRED"
+    PREFERRED = "PREFERRED"
+
+
+class TechnologyGapReason(StrEnum):
+    """Why a required technology slot was not satisfied.
+
+    Rules E-4, E-6, and E-7 are the only sources. NO_EVIDENCE and UNRECOGNIZED_TERM carry no
+    tier (E-4). TIER_2_OR_TIER_4_ONLY still raises the gap despite partial credit (E-7).
+    PROHIBITED_INFERENCE records the tier that was refused (E-6). There is deliberately no
+    member for a preferred-technology gap: preferred technologies never raise one (A-7).
+    """
+
+    NO_EVIDENCE = "NO_EVIDENCE"
+    UNRECOGNIZED_TERM = "UNRECOGNIZED_TERM"
+    TIER_2_OR_TIER_4_ONLY = "TIER_2_OR_TIER_4_ONLY"
+    PROHIBITED_INFERENCE = "PROHIBITED_INFERENCE"

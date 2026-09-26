@@ -6,18 +6,27 @@ import pytest
 from pydantic import ValidationError
 
 from careerops.config.schema import (
+    APPROVED_ALIAS_FAMILIES,
+    APPROVED_ALIAS_FAMILY_COUNT,
+    APPROVED_ALIAS_VARIANT_COUNT,
+    APPROVED_CANONICAL_TECHNOLOGIES,
     REQUIRED_UNRESOLVED_POLICY_KEYS,
     UNRESOLVED,
+    AliasFamily,
     AssessmentPolicyUnresolvedError,
     BlockerConfig,
+    CanonicalTechnology,
     ClassificationThresholds,
     CompensationConfig,
     EvidenceTierWeights,
     ReportDisplayPolicy,
+    RequiredPreferredPolicy,
     RiskFlagConfig,
     ScoringConfig,
     SeniorityBands,
     SeniorScopeRule,
+    TechnologyAllocationPolicy,
+    TechnologyNormalizationPolicy,
 )
 from careerops.enums import BlockerCode, RiskFlag
 
@@ -89,6 +98,91 @@ VALID_SENIOR_SCOPE: dict[str, Any] = {
 }
 
 
+VALID_ALLOCATION: dict[str, Any] = {
+    "dimension": "verified_technical_skill_alignment",
+    "allocation": "required_only_conservative",
+    "zero_required_slots_points": 0,
+    "preferred_in_numerator": False,
+    "preferred_in_denominator": False,
+    "unrecognized_required_term_credit": 0.00,
+    "unrecognized_required_term_stays_in_denominator": True,
+    "numerator_source": "structured_technology_fields_only",
+    "prose_token_scanning": False,
+    "rounding": "deferred_to_score_rounding_rule",
+}
+
+VALID_NORMALIZATION: dict[str, Any] = {
+    "normalization_steps": ["nfc", "casefold", "collapse_whitespace", "trim"],
+    "whole_phrase_only": True,
+    "alias_direction": "variant_to_canonical",
+    "unknown_alias_auto_match": False,
+    "bare_two_letter_aliases_allowed": False,
+    "candidate_side_compound_parsing": "deferred",
+    "unknown_term_handling": "report_section_only",
+    "persistent_review_queue": False,
+    "canonical_technologies": [
+        {"id": identifier, "display_name": display}
+        for identifier, display in APPROVED_CANONICAL_TECHNOLOGIES
+    ],
+    "alias_families": [
+        {
+            "canonical_id": identifier,
+            "approval_date": "2026-09-26",
+            "defense": "same technology, not a related one",
+            "variants": list(variants),
+        }
+        for identifier, variants in APPROVED_ALIAS_FAMILIES
+    ],
+    "deferred_alias_variants": [
+        "crontab",
+        "openssh",
+        "js/ts",
+        "javascript/typescript",
+        "js",
+        "ts",
+        "react native",
+        "ubuntu",
+        "vector database",
+    ],
+    "deferred_alias_mappings": ["RAG -> LangChain", "MCP -> Azure OpenAI"],
+    "deferred_alias_categories": ["broad_category", "capability_phrase"],
+}
+
+VALID_REQUIRED_PREFERRED: dict[str, Any] = {
+    "required_only_dimension_input": True,
+    "preferred_score_effect": "none",
+    "preferred_classification_effect": "none",
+    "preferred_recommendation_effect": "none",
+    "preferred_flag_effect": "none",
+    "preferred_raises_required_skill_gap": False,
+    "preferred_evidence_map_required": True,
+    "preferred_influences_human_next_action_wording_only": True,
+    "no_explicit_required_technologies_points": 0,
+    "any_of_slot_count": 1,
+    "equivalent_may_introduce_new_technology": False,
+    "generic_wording_becomes_slot": False,
+    "critical_unknown_when_structured_field_yields_no_technology": True,
+    "compound_all_of_slot": "deferred",
+    "preferred_extraction": "deferred",
+}
+
+VALID_ALIAS_FAMILY: dict[str, Any] = {
+    "canonical_id": "REACT",
+    "approval_date": "2026-09-26",
+    "defense": "Spelling variants of the identical library",
+    "variants": ["react.js", "reactjs"],
+}
+
+
+def _normalization(**overrides: Any) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        key: (list(value) if isinstance(value, list) else value)
+        for key, value in VALID_NORMALIZATION.items()
+    }
+    payload.update(overrides)
+    return payload
+
+
 def _unresolved_policy(resolved: set[str] | None = None) -> dict[str, Any]:
     done = resolved or set()
     return {
@@ -108,6 +202,9 @@ def _scoring(
             "match_classification_thresholds": VALID_THRESHOLDS,
             "seniority_bands": VALID_SENIORITY,
             "report_display": VALID_REPORT_DISPLAY,
+            "technology_base_credit_allocation": dict(VALID_ALLOCATION),
+            "technology_matching_normalization": _normalization(),
+            "required_vs_preferred_technology_handling": dict(VALID_REQUIRED_PREFERRED),
             "unresolved_policy": (
                 unresolved_policy if unresolved_policy is not None else _unresolved_policy()
             ),
@@ -453,3 +550,408 @@ def test_incomplete_risk_flag_set_is_rejected() -> None:
     rules = [{"flag": f.value, "enabled": True} for f in RiskFlag][:-1]
     with pytest.raises(ValidationError):
         RiskFlagConfig.model_validate({"flags": rules})
+
+
+# =============================================================== A-5 allocation policy
+
+
+def test_valid_allocation_policy_is_accepted() -> None:
+    policy = TechnologyAllocationPolicy.model_validate(dict(VALID_ALLOCATION))
+    assert policy.allocation == "required_only_conservative"
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "match"),
+    [
+        ("dimension", "role_family_relevance", "allocation dimension"),
+        ("zero_required_slots_points", 3, "zero required slots"),
+        ("preferred_in_numerator", True, "never enter the numerator"),
+        ("preferred_in_denominator", True, "never enter the numerator"),
+        ("unrecognized_required_term_credit", 0.5, "zero credit"),
+        ("unrecognized_required_term_stays_in_denominator", False, "in the denominator"),
+        ("prose_token_scanning", True, "never token-scanned"),
+    ],
+)
+def test_allocation_policy_rejects_each_departure(
+    field: str, value: Any, match: str
+) -> None:
+    """Each A-5 rule is enforced on its own, with its own reason."""
+    payload = dict(VALID_ALLOCATION)
+    payload[field] = value
+    with pytest.raises(ValidationError, match=match):
+        TechnologyAllocationPolicy.model_validate(payload)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("allocation", "required_weighted_balanced"),
+        ("numerator_source", "raw_listing_prose"),
+        ("rounding", "half_up"),
+    ],
+)
+def test_allocation_policy_rejects_an_unapproved_literal(field: str, value: str) -> None:
+    payload = dict(VALID_ALLOCATION)
+    payload[field] = value
+    with pytest.raises(ValidationError):
+        TechnologyAllocationPolicy.model_validate(payload)
+
+
+# ============================================================ A-6 canonical identifiers
+
+
+@pytest.mark.parametrize("identifier", ["react", "React", "rest-apis", "_REACT", "2REACT"])
+def test_canonical_identifier_shape_is_enforced(identifier: str) -> None:
+    with pytest.raises(ValidationError, match="uppercase-snake"):
+        CanonicalTechnology.model_validate({"id": identifier, "display_name": "React"})
+
+
+def test_canonical_identifier_requires_a_display_name() -> None:
+    with pytest.raises(ValidationError, match="display name"):
+        CanonicalTechnology.model_validate({"id": "REACT", "display_name": "  "})
+
+
+def test_uppercase_snake_identifier_with_digits_is_accepted() -> None:
+    """BM25 must be a legal identifier."""
+    assert CanonicalTechnology.model_validate({"id": "BM25", "display_name": "BM25"}).id == (
+        "BM25"
+    )
+
+
+# ================================================================ A-6 alias families
+
+
+def test_valid_alias_family_is_accepted() -> None:
+    family = AliasFamily.model_validate(dict(VALID_ALIAS_FAMILY))
+    assert family.variants == ("react.js", "reactjs")
+
+
+def test_alias_family_requires_an_approval_date() -> None:
+    payload = dict(VALID_ALIAS_FAMILY)
+    payload["approval_date"] = "   "
+    with pytest.raises(ValidationError, match="approval date"):
+        AliasFamily.model_validate(payload)
+
+
+def test_alias_family_requires_a_defense_statement() -> None:
+    payload = dict(VALID_ALIAS_FAMILY)
+    payload["defense"] = ""
+    with pytest.raises(ValidationError, match="defense statement"):
+        AliasFamily.model_validate(payload)
+
+
+def test_alias_family_requires_variants() -> None:
+    payload = dict(VALID_ALIAS_FAMILY)
+    payload["variants"] = []
+    with pytest.raises(ValidationError, match="requires variants"):
+        AliasFamily.model_validate(payload)
+
+
+def test_alias_family_rejects_a_duplicate_variant() -> None:
+    payload = dict(VALID_ALIAS_FAMILY)
+    payload["variants"] = ["react.js", "react.js"]
+    with pytest.raises(ValidationError, match="duplicate variant"):
+        AliasFamily.model_validate(payload)
+
+
+@pytest.mark.parametrize(
+    "variant", ["React.js", "REACTJS", " react.js", "react.js ", "react  js"]
+)
+def test_alias_variant_keys_must_already_be_normalized(variant: str) -> None:
+    """A-6: the four steps are NFC, casefold, whitespace collapse, and trim."""
+    payload = dict(VALID_ALIAS_FAMILY)
+    payload["variants"] = [variant]
+    with pytest.raises(ValidationError, match="normalized lookup key"):
+        AliasFamily.model_validate(payload)
+
+
+def test_an_already_normalized_multiword_variant_is_accepted() -> None:
+    payload = dict(VALID_ALIAS_FAMILY)
+    payload["canonical_id"] = "REST_APIS"
+    payload["variants"] = ["restful apis"]
+    assert AliasFamily.model_validate(payload).variants == ("restful apis",)
+
+
+@pytest.mark.parametrize("variant", ["js", "ts"])
+def test_bare_two_letter_variant_is_rejected(variant: str) -> None:
+    """TS also denotes Top Secret; JS/TS is a compound requirement, not an alias."""
+    payload = dict(VALID_ALIAS_FAMILY)
+    payload["variants"] = [variant]
+    with pytest.raises(ValidationError, match="two-letter"):
+        AliasFamily.model_validate(payload)
+
+
+@pytest.mark.parametrize(
+    "variant",
+    [
+        "crontab",
+        "openssh",
+        "js/ts",
+        "javascript/typescript",
+        "react native",
+        "ubuntu",
+        "vector database",
+    ],
+)
+def test_deferred_alias_variant_is_rejected(variant: str) -> None:
+    """A-6: every deferred variant is unusable, including in a new family."""
+    payload = dict(VALID_ALIAS_FAMILY)
+    payload["variants"] = [variant]
+    with pytest.raises(ValidationError, match="explicitly deferred"):
+        AliasFamily.model_validate(payload)
+
+
+def test_alias_family_identifier_shape_is_enforced() -> None:
+    payload = dict(VALID_ALIAS_FAMILY)
+    payload["canonical_id"] = "react"
+    with pytest.raises(ValidationError, match="uppercase-snake"):
+        AliasFamily.model_validate(payload)
+
+
+# ============================================================ A-6 normalization policy
+
+
+def test_valid_normalization_policy_is_accepted() -> None:
+    policy = TechnologyNormalizationPolicy.model_validate(_normalization())
+    assert len(policy.alias_families) == APPROVED_ALIAS_FAMILY_COUNT == 9
+    assert sum(len(f.variants) for f in policy.alias_families) == (
+        APPROVED_ALIAS_VARIANT_COUNT
+    )
+
+
+@pytest.mark.parametrize(
+    "steps",
+    [
+        ["casefold", "collapse_whitespace", "trim"],
+        ["nfc", "casefold", "collapse_whitespace", "trim", "strip_punctuation"],
+        ["nfc", "casefold", "strip_version", "trim"],
+        ["nfc", "casefold", "expand_acronyms", "trim"],
+        ["casefold", "nfc", "collapse_whitespace", "trim"],
+    ],
+)
+def test_normalization_steps_must_be_exactly_the_four_approved_steps(
+    steps: list[str],
+) -> None:
+    with pytest.raises(ValidationError, match="normalization steps"):
+        TechnologyNormalizationPolicy.model_validate(_normalization(normalization_steps=steps))
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "match"),
+    [
+        ("whole_phrase_only", False, "whole-phrase only"),
+        ("unknown_alias_auto_match", True, "never auto-match"),
+        ("bare_two_letter_aliases_allowed", True, "two-letter"),
+        ("persistent_review_queue", True, "persistent review queue"),
+    ],
+)
+def test_normalization_policy_rejects_each_departure(
+    field: str, value: Any, match: str
+) -> None:
+    with pytest.raises(ValidationError, match=match):
+        TechnologyNormalizationPolicy.model_validate(_normalization(**{field: value}))
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("alias_direction", "bidirectional"),
+        ("candidate_side_compound_parsing", "enabled"),
+        ("unknown_term_handling", "auto_match"),
+    ],
+)
+def test_normalization_policy_rejects_an_unapproved_literal(field: str, value: str) -> None:
+    with pytest.raises(ValidationError):
+        TechnologyNormalizationPolicy.model_validate(_normalization(**{field: value}))
+
+
+def test_duplicate_canonical_identifier_in_the_registry_is_rejected() -> None:
+    registry = [{"id": i, "display_name": d} for i, d in APPROVED_CANONICAL_TECHNOLOGIES]
+    registry.append({"id": "REACT", "display_name": "React"})
+    with pytest.raises(ValidationError, match="duplicate canonical identifier"):
+        TechnologyNormalizationPolicy.model_validate(
+            _normalization(canonical_technologies=registry)
+        )
+
+
+def test_each_canonical_identifier_has_exactly_one_display_name() -> None:
+    """A second display name for the same identifier is a duplicate identifier."""
+    registry = [{"id": i, "display_name": d} for i, d in APPROVED_CANONICAL_TECHNOLOGIES]
+    registry.append({"id": "REACT", "display_name": "React.js"})
+    with pytest.raises(ValidationError, match="duplicate canonical identifier"):
+        TechnologyNormalizationPolicy.model_validate(
+            _normalization(canonical_technologies=registry)
+        )
+
+
+def test_alias_family_targeting_an_unregistered_identifier_is_rejected() -> None:
+    families = [
+        {
+            "canonical_id": identifier,
+            "approval_date": "2026-09-26",
+            "defense": "same technology",
+            "variants": list(variants),
+        }
+        for identifier, variants in APPROVED_ALIAS_FAMILIES
+    ]
+    families.append(
+        {
+            "canonical_id": "LANGCHAIN",
+            "approval_date": "2026-09-26",
+            "defense": "same technology",
+            "variants": ["langchain framework"],
+        }
+    )
+    with pytest.raises(ValidationError, match="no approved display name"):
+        TechnologyNormalizationPolicy.model_validate(_normalization(alias_families=families))
+
+
+def test_no_variant_may_map_to_two_canonical_identifiers() -> None:
+    families = [
+        {
+            "canonical_id": identifier,
+            "approval_date": "2026-09-26",
+            "defense": "same technology",
+            "variants": list(variants),
+        }
+        for identifier, variants in APPROVED_ALIAS_FAMILIES
+    ]
+    families[1]["variants"] = [*families[1]["variants"], "reactjs"]
+    with pytest.raises(ValidationError, match="maps to both"):
+        TechnologyNormalizationPolicy.model_validate(_normalization(alias_families=families))
+
+
+def test_duplicate_canonical_identifier_across_families_is_rejected() -> None:
+    families = [
+        {
+            "canonical_id": identifier,
+            "approval_date": "2026-09-26",
+            "defense": "same technology",
+            "variants": list(variants),
+        }
+        for identifier, variants in APPROVED_ALIAS_FAMILIES
+    ]
+    families.append(
+        {
+            "canonical_id": "REACT",
+            "approval_date": "2026-09-26",
+            "defense": "same technology",
+            "variants": ["react framework"],
+        }
+    )
+    with pytest.raises(ValidationError, match="duplicate canonical identifier"):
+        TechnologyNormalizationPolicy.model_validate(_normalization(alias_families=families))
+
+
+def test_dropping_an_approved_family_is_rejected() -> None:
+    families = [
+        {
+            "canonical_id": identifier,
+            "approval_date": "2026-09-26",
+            "defense": "same technology",
+            "variants": list(variants),
+        }
+        for identifier, variants in APPROVED_ALIAS_FAMILIES
+    ][:-1]
+    with pytest.raises(ValidationError, match="approved initial registry"):
+        TechnologyNormalizationPolicy.model_validate(_normalization(alias_families=families))
+
+
+def test_removing_a_deferred_variant_from_the_deferred_set_is_rejected() -> None:
+    deferred = [v for v in VALID_NORMALIZATION["deferred_alias_variants"] if v != "crontab"]
+    with pytest.raises(ValidationError, match="approved deferred set"):
+        TechnologyNormalizationPolicy.model_validate(
+            _normalization(deferred_alias_variants=deferred)
+        )
+
+
+def test_deferred_mappings_and_categories_must_be_recorded() -> None:
+    with pytest.raises(ValidationError, match="deferred alias mappings"):
+        TechnologyNormalizationPolicy.model_validate(
+            _normalization(deferred_alias_mappings=[])
+        )
+    with pytest.raises(ValidationError, match="deferred alias categories"):
+        TechnologyNormalizationPolicy.model_validate(
+            _normalization(deferred_alias_categories=[])
+        )
+
+
+# ============================================================ A-7 required vs preferred
+
+
+def test_valid_required_preferred_policy_is_accepted() -> None:
+    policy = RequiredPreferredPolicy.model_validate(dict(VALID_REQUIRED_PREFERRED))
+    assert policy.required_only_dimension_input is True
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "match"),
+    [
+        ("required_only_dimension_input", False, "only input"),
+        ("preferred_raises_required_skill_gap", True, "never raise REQUIRED_SKILL_GAP"),
+        ("preferred_evidence_map_required", False, "preferred-evidence map"),
+        (
+            "preferred_influences_human_next_action_wording_only",
+            False,
+            "Human next action wording",
+        ),
+        ("no_explicit_required_technologies_points", 4, "scores 0 in this"),
+        ("any_of_slot_count", 2, "one any-of slot"),
+        ("equivalent_may_introduce_new_technology", True, "never invents"),
+        ("generic_wording_becomes_slot", True, "generic wording"),
+        (
+            "critical_unknown_when_structured_field_yields_no_technology",
+            False,
+            "critical unknown",
+        ),
+    ],
+)
+def test_required_preferred_policy_rejects_each_departure(
+    field: str, value: Any, match: str
+) -> None:
+    payload = dict(VALID_REQUIRED_PREFERRED)
+    payload[field] = value
+    with pytest.raises(ValidationError, match=match):
+        RequiredPreferredPolicy.model_validate(payload)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("preferred_score_effect", "partial"),
+        ("preferred_classification_effect", "partial"),
+        ("preferred_recommendation_effect", "partial"),
+        ("preferred_flag_effect", "partial"),
+        ("compound_all_of_slot", "implemented"),
+        ("preferred_extraction", "implemented"),
+    ],
+)
+def test_required_preferred_policy_rejects_an_unapproved_literal(
+    field: str, value: str
+) -> None:
+    payload = dict(VALID_REQUIRED_PREFERRED)
+    payload[field] = value
+    with pytest.raises(ValidationError):
+        RequiredPreferredPolicy.model_validate(payload)
+
+
+# ============================================================= gate cannot be widened
+
+
+def test_a_resolved_key_cannot_be_smuggled_back_into_the_gate() -> None:
+    """The three resolved keys are no longer gate keys; readdition is rejected."""
+    gate = _unresolved_policy()
+    gate["technology_base_credit_allocation"] = UNRESOLVED
+    with pytest.raises(ValidationError):
+        _scoring(unresolved_policy=gate)
+
+
+def test_the_gate_is_exactly_five_keys_in_the_approved_order() -> None:
+    assert REQUIRED_UNRESOLVED_POLICY_KEYS == (
+        "seniority_band_selection_precedence",
+        "compensation_range_selection_rule",
+        "critical_unknown_detection_rule",
+        "score_rounding_rule",
+        "report_and_cli_score_display_scope",
+    )
+    assert _scoring().unresolved_keys() == REQUIRED_UNRESOLVED_POLICY_KEYS
