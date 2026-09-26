@@ -12,7 +12,29 @@ their decision identifiers. No release may invent a policy value.
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+
+- **Local operator runner** — `python -m careerops.tools.technology_alignment` reads one
+  required technology per line from standard input and prints the
+  `verified_technical_skill_alignment` dimension: provenance, the evidence-tier map, gaps, then
+  points last. Deliberately not a CLI command, so `report_and_cli_score_display_scope` stays
+  unresolved and the Typer CLI stays `doctor`-only. Writes no file, parses no capture file, and
+  prints no classification, recommendation, or total.
+- **`docs/VALIDATION_QUEUE.md`** — owner-supplied information that conflicts with an approved
+  canonical document, recorded rather than applied, per `CONTEXT_UPDATE_PROTOCOL.md`. First
+  entry: VQ-001, Kubernetes use during UVeye employment, which the dossier currently lists as a
+  prohibited inference.
+
+### Fixed
+
+- `TechnologyMatch.technology` reported the listing's own spelling instead of the approved
+  display name, so a listing asking for "React.js" displayed "React.js" rather than "React".
+  No test asserted that field. Shipped in 0.2.0a0; now corrected with regression coverage
+  across all nine alias families.
+- `README.md` referenced `CANONICAL_CONFLICTS_AND_UNKNOWNs.md`; the actual filename ends in
+  `UNKNOWNS.md`. Recorded as decision D-11 and deferred since Phase 0; corrected under approved
+  canonical patch `D-11-README`, which also adds a current-state section and retains all
+  original starter-pack text.
 
 ## [0.2.0a0] — 2026-09-26
 

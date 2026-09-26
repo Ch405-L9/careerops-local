@@ -53,8 +53,15 @@ allocation and A-6 normalization. Blocker detection, risk-flag detection, compen
 assessment, classification, and full assessment remain signatures that refuse to run.
 
 Layers 1, 2, 3, 5, 6, and 7 do not exist yet, so a capture file cannot currently reach layer 4
-through the pipeline. The implemented dimension is reachable only by supplying required
-technologies and a candidate term index directly.
+through the pipeline. The implemented dimension is reachable two ways: by calling
+`score_technology_alignment` with required technologies and a candidate term index directly, or
+through the local operator runner `careerops.tools.technology_alignment`, which reads one
+required technology per line from standard input and prints the dimension.
+
+The runner is deliberately **not** a CLI command. `report_and_cli_score_display_scope` is still
+an unresolved policy key, so the Typer CLI stays help-only with a single `doctor` command, and a
+compliance test enforces that. The runner writes no file, parses no capture, and prints the
+evidence-tier map and gaps before the points, never the points first (P-6, C-5).
 
 ## Design invariants
 
@@ -155,6 +162,11 @@ Where a compound must nonetheless be matchable, the owner declares its terms exp
 required entry counts as one slot. A grouped requirement such as "X, Y, or equivalent" is
 approved policy as one slot, but cannot yet be expressed as input.
 
+**Capture text is not parsed.** No importer exists. Required technologies enter one per line,
+and normalization applies only the four approved steps, so a pasted line retaining a bullet, a
+trailing comma, or a stray character will not match. The runner prints such phrases with
+`repr()` so the artifact is visible rather than mysterious.
+
 **Six dimensions have no allocation rule.** `role_family_relevance`,
 `responsibility_and_project_evidence_alignment`, `location_remote_relocation_compatibility`,
 `employment_type_compatibility`, `employer_listing_validation_quality`, and
@@ -170,4 +182,8 @@ API calls, LLM/Ollama/cloud-provider code, MCP integration, applications, messag
 social posting, reports, and any canonical-document modification.
 
 No module reads any file except `config/*.yaml`, asserted by a compliance test. The dossier
-package performs no I/O whatsoever.
+package and the operator runner perform no I/O whatsoever.
+
+Owner-supplied information that conflicts with an approved canonical document is recorded in
+`docs/VALIDATION_QUEUE.md` and is never applied until an `APPROVE PATCH` reply authorizes it.
+Nothing in that queue affects matching or scoring.

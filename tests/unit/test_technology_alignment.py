@@ -236,6 +236,59 @@ def test_an_exact_match_names_no_alias_family(normalization) -> None:
     assert matches[0].alias_family_identifier is None
 
 
+@pytest.mark.parametrize(
+    ("phrase", "display"),
+    [
+        ("React.js", "React"),
+        ("reactjs", "React"),
+        ("RESTful APIs", "REST APIs"),
+        ("python3", "Python"),
+        ("Chroma", "ChromaDB"),
+        ("okapi bm25", "BM25"),
+        ("SQLite3", "SQLite"),
+        ("bash shell", "Bash"),
+    ],
+)
+def test_the_human_facing_field_uses_the_approved_display_name(
+    normalization, phrase: str, display: str
+) -> None:
+    """A-6 carried-forward item 4: human-facing output uses the display name.
+
+    Not the listing's own spelling, and not the internal identifier. A listing asking for
+    "React.js" is reported as React.
+    """
+    terms = (
+        CandidateTerm("React", T1, "Synthetic skills — Sample section"),
+        CandidateTerm("REST APIs", T1, "Synthetic skills — Sample section"),
+        CandidateTerm("Python", T1, "Synthetic skills — Sample section"),
+        CandidateTerm("ChromaDB", T1, "Synthetic skills — Sample section"),
+        CandidateTerm("BM25", T1, "Synthetic skills — Sample section"),
+        CandidateTerm("SQLite", T1, "Synthetic skills — Sample section"),
+        CandidateTerm("Bash", T1, "Synthetic skills — Sample section"),
+    )
+    matches, _ = match_technologies((phrase,), terms, normalization)
+    assert matches[0].technology == display
+    assert matches[0].raw_job_phrase == phrase
+
+
+def test_an_unregistered_technology_reports_its_own_phrase(normalization) -> None:
+    """No approved display name exists for it, so the listing's phrase is the honest label."""
+    matches, _ = match_technologies(("Kotlin",), SYNTHETIC_TERMS, normalization)
+    assert matches[0].technology == "Kotlin"
+    assert matches[0].normalized_job_identifier == "kotlin"
+
+
+def test_the_display_name_is_never_the_internal_identifier(normalization) -> None:
+    """A-6: an identifier is never displayed alone."""
+    matches, _ = match_technologies(
+        ("REST APIs",),
+        (CandidateTerm("REST APIs", T1, "Synthetic skills — Sample section"),),
+        normalization,
+    )
+    assert matches[0].technology == "REST APIs"
+    assert matches[0].technology != matches[0].normalized_job_identifier
+
+
 # ==================================================================== slot counting
 
 
@@ -411,6 +464,42 @@ def test_an_adjacent_stack_listing_scores_zero(config) -> None:
     assert result.points == 0.0
     assert len(result.gaps) == 4
     assert result.matches == ()
+
+
+def test_no_evidence_is_unreachable_by_construction(config, normalization) -> None:
+    """Documented in VQ-002. NO_EVIDENCE is not dead code.
+
+    Every approved canonical identifier was chosen from the dossier, so every one has candidate
+    evidence, so a phrase resolving to an approved identifier can never lack evidence. The
+    member becomes reachable the moment an identifier is approved for a technology the candidate
+    does not have. Deleting it would remove the only correct label for that case.
+    """
+    from careerops.assess.evidence import resolve_job_phrase
+
+    index: set[str] = set()
+    for entry in candidate_terms():
+        identifier, _, _ = resolve_job_phrase(entry.term, normalization)
+        index.add(identifier)
+    approved = {entry.id for entry in normalization.canonical_technologies}
+    assert approved <= index, (
+        "an approved identifier now lacks candidate evidence; NO_EVIDENCE has become "
+        "reachable and VQ-002 should be revisited"
+    )
+
+
+def test_an_unevidenced_known_technology_reports_unrecognized_term(config) -> None:
+    """Deferred by VQ-002: the label describes normalization, not the wider world.
+
+    Kubernetes is a real technology with no approved canonical identifier and no candidate
+    evidence. Distinguishing it from an arbitrary string would need an owner-approved
+    prohibited-term declaration, so today both report UNRECOGNIZED_TERM and both score zero.
+    """
+    result = score_technology_alignment(
+        "real-1", ("Kubernetes", "zzqqxx"), candidate_terms(), config
+    )
+    assert result.points == 0.0
+    assert {gap.reason for gap in result.gaps} == {TechnologyGapReason.UNRECOGNIZED_TERM}
+    assert all(gap.normalized_job_identifier is None for gap in result.gaps)
 
 
 def test_no_prohibited_inference_is_reachable_from_candidate_evidence() -> None:

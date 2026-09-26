@@ -57,6 +57,17 @@ def lookup_key(value: str) -> str:
     return " ".join(unicodedata.normalize("NFC", value).casefold().split())
 
 
+def _display_names(
+    normalization: TechnologyNormalizationPolicy,
+) -> dict[str, str]:
+    """Return canonical identifier -> its single approved display name.
+
+    Human-facing output uses the display name, never the identifier and never the listing's own
+    spelling. A job asking for "React.js" is reported as React.
+    """
+    return {entry.id: entry.display_name for entry in normalization.canonical_technologies}
+
+
 def _registry(
     normalization: TechnologyNormalizationPolicy,
 ) -> tuple[dict[str, str], dict[str, str]]:
@@ -138,6 +149,7 @@ def match_technologies(
     index = _candidate_index(normalization, terms)
     display, _ = _registry(normalization)
     approved_identifiers = set(display.values())
+    display_names = _display_names(normalization)
 
     matches: list[TechnologyMatch] = []
     gaps: list[TechnologyGap] = []
@@ -172,7 +184,7 @@ def match_technologies(
         best = _best(evidence)
         matches.append(
             TechnologyMatch(
-                technology=phrase.strip(),
+                technology=display_names.get(identifier, phrase.strip()),
                 raw_job_phrase=phrase,
                 normalized_job_identifier=identifier,
                 raw_candidate_evidence_phrase=best.term,
