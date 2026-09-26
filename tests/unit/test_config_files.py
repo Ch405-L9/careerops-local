@@ -66,7 +66,33 @@ def test_unresolved_key_set_is_exact(config_dir: Path) -> None:
         "critical_unknown_detection_rule",
         "score_rounding_rule",
         "report_and_cli_score_display_scope",
+        "role_family_allocation_rule",
+        "responsibility_evidence_allocation_rule",
+        "location_remote_relocation_allocation_rule",
+        "employment_type_allocation_rule",
+        "growth_learning_allocation_rule",
+        "employer_listing_validation_allocation_rule",
     )
+
+
+def test_every_unruled_dimension_has_a_gate_key(config_dir: Path) -> None:
+    """The six dimensions holding 55 points are now tracked, not invisible."""
+    from careerops.config.schema import ALLOCATION_RULE_DIMENSIONS, ALLOCATION_RULE_KEYS
+
+    config = load_assessment_config(config_dir)
+    gate = config.unresolved_keys()
+    for key in ALLOCATION_RULE_KEYS:
+        assert key in gate
+    weights = config.scoring.weights
+    for key, dimension in ALLOCATION_RULE_DIMENSIONS.items():
+        assert dimension in weights, f"{key} names a dimension that is not weighted"
+    assert sum(weights[d] for d in ALLOCATION_RULE_DIMENSIONS.values()) == 55
+
+
+def test_the_sentinel_is_the_only_value_in_the_gate(config_dir: Path) -> None:
+    """Shipped configuration must carry no released or annotated gate value."""
+    gate = load_assessment_config(config_dir).scoring.unresolved_policy
+    assert set(gate.values()) == {"UNRESOLVED"}
 
 
 def test_resolved_keys_are_absent_from_the_unresolved_gate(config_dir: Path) -> None:

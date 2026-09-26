@@ -14,6 +14,21 @@ their decision identifiers. No release may invent a policy value.
 
 ### Added
 
+- **Six dimension-allocation gate keys**, per the 2026-09-26 dimension-allocation record. The
+  readiness gate rises from five keys to **eleven**, one for each dimension that holds an
+  approved weight but no rule for turning facts into points: role family, responsibility and
+  project evidence, location/remote/relocation, employment type, employer listing validation,
+  and growth/learning. Those six account for **55 of the 100 points** and were previously
+  untracked, which made the gap invisible. Making already-missing work visible is not a
+  regression.
+- **Three policy states** — `PolicyStatus` with `UNRESOLVED`, `PROVISIONAL`, and `APPROVED`.
+  There is deliberately no member for a derived, inferred, or defaulted rule. A provisional rule
+  must be labelled provisional wherever its result is displayed.
+- **Recorded ceiling.** Responsibility (15) and growth (3) have no deterministic input, so under
+  C-2 the highest achievable total is 82 of 100. The P-2 bands assume nine evaluated dimensions
+  and `STRONG_MATCH` begins at 72, so no `MatchClassification` is produced while any dimension
+  is unevaluated. A test pins the 82 figure to the actual weights.
+
 - **Local operator runner** — `python -m careerops.tools.technology_alignment` reads one
   required technology per line from standard input and prints the
   `verified_technical_skill_alignment` dimension: provenance, the evidence-tier map, gaps, then
@@ -27,6 +42,9 @@ their decision identifiers. No release may invent a policy value.
 
 ### Fixed
 
+- **Gate-integrity hole.** `unresolved_policy` accepted any value, so writing "approved" or a
+  typo over a key silently released it from the readiness gate. Only the exact `UNRESOLVED`
+  sentinel is now accepted, and the rejection message states the correct resolution procedure.
 - `TechnologyMatch.technology` reported the listing's own spelling instead of the approved
   display name, so a listing asking for "React.js" displayed "React.js" rather than "React".
   No test asserted that field. Shipped in 0.2.0a0; now corrected with regression coverage

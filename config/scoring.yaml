@@ -245,12 +245,27 @@ required_vs_preferred_technology_handling:
 
 # Policy decisions required before any deterministic assessment behaviour may be
 # implemented or executed. Structural loading succeeds; readiness validation fails
-# while any value below is UNRESOLVED. No value may be invented.
-# A-5, A-6, and A-7 were resolved by the 2026-09-26 owner-decision record and are no
-# longer listed here; five keys remain.
+# while any key appears below. No value may be invented.
+#
+# UNRESOLVED is the ONLY value permitted here, enforced by schema validation. A key is not
+# resolved by changing its value: it is resolved by removing it from this block and from
+# REQUIRED_UNRESOLVED_POLICY_KEYS, and adding a typed policy block carrying its own status.
+#
+# A-5, A-6, and A-7 were resolved that way by the 2026-09-26 technology-matching record.
+#
+# Six allocation-rule keys were added by the 2026-09-26 dimension-allocation record. They
+# cover the six dimensions that hold approved weights but no rule for turning facts into
+# points - 55 of the 100 points. They were previously missing from this gate entirely, which
+# made that gap invisible.
 unresolved_policy:
   seniority_band_selection_precedence: UNRESOLVED
   compensation_range_selection_rule: UNRESOLVED
   critical_unknown_detection_rule: UNRESOLVED
   score_rounding_rule: UNRESOLVED
   report_and_cli_score_display_scope: UNRESOLVED
+  role_family_allocation_rule: UNRESOLVED
+  responsibility_evidence_allocation_rule: UNRESOLVED
+  location_remote_relocation_allocation_rule: UNRESOLVED
+  employment_type_allocation_rule: UNRESOLVED
+  employer_listing_validation_allocation_rule: UNRESOLVED
+  growth_learning_allocation_rule: UNRESOLVED

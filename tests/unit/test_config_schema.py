@@ -184,6 +184,11 @@ def _normalization(**overrides: Any) -> dict[str, Any]:
 
 
 def _unresolved_policy(resolved: set[str] | None = None) -> dict[str, Any]:
+    """Build a gate block. `resolved` keys are given a non-sentinel value on purpose.
+
+    Writing any value other than the UNRESOLVED sentinel is rejected by validation: that is
+    the gate-integrity rule, not a limitation. Tests use this to prove the rejection.
+    """
     done = resolved or set()
     return {
         key: ("approved" if key in done else UNRESOLVED)
@@ -256,16 +261,42 @@ def test_unresolved_policy_key_set_must_be_exact() -> None:
         _scoring(unresolved_policy=extra)
 
 
-def test_resolving_every_key_would_allow_readiness() -> None:
-    """The mechanism still works: a fully resolved synthetic gate reports nothing."""
-    resolved = _scoring(unresolved_policy=_unresolved_policy(set(REQUIRED_UNRESOLVED_POLICY_KEYS)))
-    assert resolved.unresolved_keys() == ()
+def test_a_key_cannot_be_released_by_changing_its_value() -> None:
+    """Gate integrity: the UNRESOLVED sentinel is the only permitted value.
+
+    Previously any non-sentinel string passed readiness, so "approved" or a typo silently
+    released a key. Resolution now requires removing the key from `unresolved_policy` and from
+    REQUIRED_UNRESOLVED_POLICY_KEYS together, plus a typed block carrying its own status.
+    """
+    with pytest.raises(ValidationError, match="only the 'UNRESOLVED' sentinel"):
+        _scoring(unresolved_policy=_unresolved_policy({"score_rounding_rule"}))
 
 
-def test_partially_resolved_gate_reports_only_the_remainder() -> None:
-    partial = _scoring(unresolved_policy=_unresolved_policy({"score_rounding_rule"}))
-    assert "score_rounding_rule" not in partial.unresolved_keys()
-    assert len(partial.unresolved_keys()) == len(REQUIRED_UNRESOLVED_POLICY_KEYS) - 1
+def test_releasing_every_key_by_value_is_rejected_too() -> None:
+    with pytest.raises(ValidationError, match="only the 'UNRESOLVED' sentinel"):
+        _scoring(
+            unresolved_policy=_unresolved_policy(set(REQUIRED_UNRESOLVED_POLICY_KEYS))
+        )
+
+
+@pytest.mark.parametrize("value", ["approved", "APPROVED", "PROVISIONAL", "", "unresolved", None])
+def test_no_near_miss_value_passes_the_gate(value: object) -> None:
+    """Case, whitespace, and near synonyms are all rejected. Only the exact sentinel passes."""
+    gate = _unresolved_policy()
+    gate["score_rounding_rule"] = value
+    with pytest.raises(ValidationError):
+        _scoring(unresolved_policy=gate)
+
+
+def test_the_error_names_how_a_key_is_actually_resolved() -> None:
+    """A rejection must tell the reader the correct procedure, not only that it failed."""
+    gate = _unresolved_policy()
+    gate["score_rounding_rule"] = "approved"
+    with pytest.raises(ValidationError) as excinfo:
+        _scoring(unresolved_policy=gate)
+    message = str(excinfo.value)
+    assert "REQUIRED_UNRESOLVED_POLICY_KEYS" in message
+    assert "PolicyStatus" in message
 
 
 def test_unresolved_error_names_every_key() -> None:
@@ -946,12 +977,46 @@ def test_a_resolved_key_cannot_be_smuggled_back_into_the_gate() -> None:
         _scoring(unresolved_policy=gate)
 
 
-def test_the_gate_is_exactly_five_keys_in_the_approved_order() -> None:
+def test_the_gate_is_exactly_eleven_keys_in_the_approved_order() -> None:
+    """Exact named tuple, never a count. Five policy keys plus six allocation-rule keys."""
     assert REQUIRED_UNRESOLVED_POLICY_KEYS == (
         "seniority_band_selection_precedence",
         "compensation_range_selection_rule",
         "critical_unknown_detection_rule",
         "score_rounding_rule",
         "report_and_cli_score_display_scope",
+        "role_family_allocation_rule",
+        "responsibility_evidence_allocation_rule",
+        "location_remote_relocation_allocation_rule",
+        "employment_type_allocation_rule",
+        "growth_learning_allocation_rule",
+        "employer_listing_validation_allocation_rule",
     )
     assert _scoring().unresolved_keys() == REQUIRED_UNRESOLVED_POLICY_KEYS
+
+
+def test_every_allocation_key_names_a_weighted_dimension() -> None:
+    """An allocation key that governs no dimension would track nothing."""
+    from careerops.config.schema import ALLOCATION_RULE_DIMENSIONS, ALLOCATION_RULE_KEYS
+
+    assert set(ALLOCATION_RULE_DIMENSIONS) == set(ALLOCATION_RULE_KEYS)
+    assert set(ALLOCATION_RULE_KEYS) <= set(REQUIRED_UNRESOLVED_POLICY_KEYS)
+    weights = _scoring().weights
+    for key, dimension in ALLOCATION_RULE_DIMENSIONS.items():
+        assert dimension in weights, f"{key} names {dimension!r}, which is not weighted"
+    assert sum(weights[d] for d in ALLOCATION_RULE_DIMENSIONS.values()) == 55
+
+
+def test_the_unevaluated_ceiling_is_eighty_two() -> None:
+    """C-2 keeps an unevaluated dimension in the denominator.
+
+    Responsibility (15) and growth (3) have no deterministic input, so while they stay
+    unevaluated the highest achievable total is 82, and the P-2 bands cannot be applied.
+    """
+    weights = _scoring().weights
+    unevaluable = (
+        weights["responsibility_and_project_evidence_alignment"]
+        + weights["growth_learning_relevance"]
+    )
+    assert unevaluable == 18
+    assert sum(weights.values()) - unevaluable == 82

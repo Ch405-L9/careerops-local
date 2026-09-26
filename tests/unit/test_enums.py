@@ -18,6 +18,7 @@ from careerops.enums import (
     PARITY_BOUND_ENUMS,
     SELF_DECLARED_ENUMS,
     BlockerCode,
+    PolicyStatus,
     EvidenceTier,
     MatchClassification,
     MatchMethod,
@@ -135,6 +136,14 @@ def test_no_preferred_gap_reason_exists() -> None:
     assert not [r for r in TechnologyGapReason if "PREFERRED" in r.value]
 
 
+def test_policy_status_has_no_inferred_or_default_member() -> None:
+    """A rule is owner-approved or it does not exist. Nothing derives its own standing."""
+    members = {member.value for member in PolicyStatus}
+    assert members == {"UNRESOLVED", "PROVISIONAL", "APPROVED"}
+    for forbidden in ("DERIVED", "INFERRED", "DEFAULT", "ASSUMED", "AUTO"):
+        assert not [m for m in members if forbidden in m]
+
+
 def test_a5_to_a7_added_no_risk_flag_or_blocker_code() -> None:
     """The flag and blocker sets stay parity-locked to PROJECT_GUARDRAILS.md."""
     assert len(RiskFlag) == EXPECTED_RISK_FLAGS
@@ -227,6 +236,7 @@ SELF_DECLARED_MEMBERS: dict[str, tuple[str, ...]] = {
         "INSUFFICIENT_EVIDENCE",
     ),
     "MatchMethod": ("EXACT", "ALIAS"),
+    "PolicyStatus": ("UNRESOLVED", "PROVISIONAL", "APPROVED"),
     "RelocationStatus": (
         "PROVIDED",
         "REQUIRED",

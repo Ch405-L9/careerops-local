@@ -25,6 +25,8 @@ from careerops.domain import FrozenModel
 from careerops.enums import BlockerCode, MatchClassification, RiskFlag, SalaryCompatibility
 
 __all__ = [
+    "ALLOCATION_RULE_DIMENSIONS",
+    "ALLOCATION_RULE_KEYS",
     "APPROVED_ALIAS_FAMILIES",
     "APPROVED_ALIAS_FAMILY_COUNT",
     "APPROVED_ALIAS_VARIANT_COUNT",
@@ -88,14 +90,52 @@ REQUIRED_UNRESOLVED_POLICY_KEYS: Final[tuple[str, ...]] = (
     "critical_unknown_detection_rule",
     "score_rounding_rule",
     "report_and_cli_score_display_scope",
+    "role_family_allocation_rule",
+    "responsibility_evidence_allocation_rule",
+    "location_remote_relocation_allocation_rule",
+    "employment_type_allocation_rule",
+    "growth_learning_allocation_rule",
+    "employer_listing_validation_allocation_rule",
 )
 """Policy decisions that gate assessment readiness. Order is the approved order.
 
-Reduced from eight to five by the 2026-09-26 owner-decision record, which resolved
-`technology_base_credit_allocation` (A-5), `technology_matching_normalization` (A-6), and
-`required_vs_preferred_technology_handling` (A-7). Those three are now typed policy blocks
-on `ScoringConfig`. Readiness remains blocked by the five keys above.
+Eight keys originally gated readiness. Three were resolved by the 2026-09-26
+technology-matching record - `technology_base_credit_allocation` (A-5),
+`technology_matching_normalization` (A-6), and `required_vs_preferred_technology_handling`
+(A-7) - and are now typed policy blocks on `ScoringConfig`.
+
+Six allocation-rule keys were then added by the 2026-09-26 dimension-allocation record, one
+for each dimension that holds an approved weight but no rule for turning facts into points.
+Those dimensions account for 55 of the 100 points and were absent from this gate entirely,
+which made the gap invisible. Making already-missing work visible is not a regression.
+
+A key is resolved only by removing it from this tuple and from `unresolved_policy` together,
+and adding a typed policy block that carries its own `PolicyStatus`.
 """
+
+ALLOCATION_RULE_KEYS: Final[tuple[str, ...]] = (
+    "role_family_allocation_rule",
+    "responsibility_evidence_allocation_rule",
+    "location_remote_relocation_allocation_rule",
+    "employment_type_allocation_rule",
+    "growth_learning_allocation_rule",
+    "employer_listing_validation_allocation_rule",
+)
+"""The six dimension-allocation keys, in the order their dimensions are weighted."""
+
+ALLOCATION_RULE_DIMENSIONS: Final[dict[str, str]] = {
+    "role_family_allocation_rule": "role_family_relevance",
+    "responsibility_evidence_allocation_rule": (
+        "responsibility_and_project_evidence_alignment"
+    ),
+    "location_remote_relocation_allocation_rule": (
+        "location_remote_relocation_compatibility"
+    ),
+    "employment_type_allocation_rule": "employment_type_compatibility",
+    "growth_learning_allocation_rule": "growth_learning_relevance",
+    "employer_listing_validation_allocation_rule": "employer_listing_validation_quality",
+}
+"""Each allocation key to the scoring dimension it governs. Every value is a weight key."""
 
 APPROVED_SENIORITY_POINTS: Final[tuple[int, ...]] = (15, 11, 7, 3, 0)
 """P-3 point bands, in descending order."""
@@ -661,6 +701,14 @@ class ScoringConfig(FrozenModel):
             raise ValueError(
                 "unresolved_policy must declare exactly the approved gate keys. "
                 f"missing={missing} unexpected={unexpected}"
+            )
+        wrong = sorted(name for name, entry in value.items() if entry != UNRESOLVED)
+        if wrong:
+            raise ValueError(
+                f"unresolved_policy accepts only the {UNRESOLVED!r} sentinel, got other "
+                f"values for {wrong}. A key is resolved by removing it from this block and "
+                "from REQUIRED_UNRESOLVED_POLICY_KEYS together, and adding a typed policy "
+                "block carrying its own PolicyStatus - never by changing its value here."
             )
         return value
 

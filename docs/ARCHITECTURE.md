@@ -127,18 +127,39 @@ second implementation behind the same interface. No code merges the two sources 
 This separation prevents assessment logic from being written before the policy decisions that
 govern it are approved.
 
-Eight keys originally gated readiness. Three are resolved: `technology_base_credit_allocation`,
-`technology_matching_normalization`, and `required_vs_preferred_technology_handling`, each now a
-typed and validated configuration block rather than a sentinel. Five remain, in approved order:
+Every policy decision holds one of three states, represented by `PolicyStatus`: `UNRESOLVED`
+(no rule exists), `PROVISIONAL` (a rule exists and is approved as a working default, and must be
+labelled provisional wherever displayed), or `APPROVED`. There is no state for a derived or
+defaulted rule.
+
+`UNRESOLVED` is the only value `unresolved_policy` accepts. A key is resolved by removing it from
+that block and from `REQUIRED_UNRESOLVED_POLICY_KEYS` together, and adding a typed block carrying
+its own status — never by writing a different value over it. That closes a hole in which any
+non-sentinel string passed readiness.
+
+Eight keys originally gated readiness. Three were resolved that way:
+`technology_base_credit_allocation`, `technology_matching_normalization`, and
+`required_vs_preferred_technology_handling`. Six allocation-rule keys were then added, one per
+dimension holding an approved weight and no allocation rule. Eleven keys now gate readiness:
 
 1. `seniority_band_selection_precedence`
 2. `compensation_range_selection_rule`
 3. `critical_unknown_detection_rule`
 4. `score_rounding_rule`
 5. `report_and_cli_score_display_scope`
+6. `role_family_allocation_rule`
+7. `responsibility_evidence_allocation_rule`
+8. `location_remote_relocation_allocation_rule`
+9. `employment_type_allocation_rule`
+10. `growth_learning_allocation_rule`
+11. `employer_listing_validation_allocation_rule`
 
 Scores are therefore exact and unrounded wherever they are produced, because rounding is still
 key 4.
+
+Keys 6 to 11 cover 55 of the 100 points. Two of those dimensions have no deterministic input at
+all, so the highest achievable total is 82 while they stay unevaluated. The P-2 bands assume nine
+evaluated dimensions, so no `MatchClassification` is produced until that changes.
 
 ## Known representational limits
 

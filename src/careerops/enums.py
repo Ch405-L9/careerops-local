@@ -4,8 +4,8 @@
 `SalaryCompatibility` and `EvidenceTier` are derived from docs/SCORING_DECISIONS.md, the
 owner-approved implementation decision record dated 2026-09-25.
 
-`MatchMethod`, `RequirementKind`, and `TechnologyGapReason` are derived from the A-5 through
-A-7 owner-decision record dated 2026-09-26. They have no canonical Markdown source and are
+`MatchMethod`, `RequirementKind`, `TechnologyGapReason`, and `PolicyStatus` are derived from
+the owner-decision records dated 2026-09-26. They have no canonical Markdown source and are
 therefore not parity-bound; binding them would require a new labelled section in that record,
 which is a separate owner decision.
 
@@ -27,6 +27,7 @@ __all__ = [
     "EvidenceTier",
     "MatchClassification",
     "MatchMethod",
+    "PolicyStatus",
     "Recommendation",
     "RelocationStatus",
     "RequirementKind",
@@ -58,6 +59,7 @@ SELF_DECLARED_ENUMS: frozenset[str] = frozenset(
         "EmploymentType",
         "MatchClassification",
         "MatchMethod",
+        "PolicyStatus",
         "RelocationStatus",
         "RequirementKind",
         "TechnologyGapReason",
@@ -256,3 +258,23 @@ class TechnologyGapReason(StrEnum):
     UNRECOGNIZED_TERM = "UNRECOGNIZED_TERM"
     TIER_2_OR_TIER_4_ONLY = "TIER_2_OR_TIER_4_ONLY"
     PROHIBITED_INFERENCE = "PROHIBITED_INFERENCE"
+
+
+class PolicyStatus(StrEnum):
+    """Standing of one policy decision. Source: the 2026-09-26 dimension-allocation record.
+
+    A gate key with no rule at all is UNRESOLVED and appears in `unresolved_policy`, where the
+    only permitted value is the UNRESOLVED sentinel itself.
+
+    PROVISIONAL means a rule exists and the owner approved it as a working default, knowing it
+    will be revisited. A provisional rule must be labelled provisional wherever its result is
+    displayed: a provisional rule that prints like a settled one is the failure this enum
+    exists to prevent.
+
+    APPROVED means the owner settled it. There is deliberately no member for "derived",
+    "inferred", or "default": a rule is owner-approved or it does not exist.
+    """
+
+    UNRESOLVED = "UNRESOLVED"
+    PROVISIONAL = "PROVISIONAL"
+    APPROVED = "APPROVED"

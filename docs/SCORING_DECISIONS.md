@@ -394,6 +394,12 @@ first sentence.
 
 ## Unresolved policy keys
 
+> **Superseded twice.** Reduced on 2026-09-26 by the technology-matching record below, then
+> superseded again the same day by the dimension-allocation record, which added six
+> allocation-rule keys.
+> The active gate is the eleven-key set in "Gate keys after the dimension-allocation decision".
+> This list is retained as historical context.
+>
 > **Reduced on 2026-09-26 by the owner-decision record below.** Three of the original eight
 > keys are now resolved: `technology_base_credit_allocation` (A-5),
 > `technology_matching_normalization` (A-6), and
@@ -663,6 +669,11 @@ Preferred-technology extraction, its schema, and any capture-template change rem
 
 ## Remaining unresolved policy keys after A-5 through A-7
 
+> **Superseded on 2026-09-26 by the dimension-allocation record below,** which added six
+> allocation-rule keys. These five remain unresolved and are still part of the active gate;
+> they are no longer the whole of it.
+> The active gate is the eleven-key set in "Gate keys after the dimension-allocation decision".
+
 These five keys gate assessment readiness. Structural configuration loading succeeds; full
 readiness validation fails and lists every key below, in this order.
 
@@ -674,3 +685,104 @@ readiness validation fails and lists every key below, in this order.
 
 No deterministic assessment behaviour may be added or executed while any key above remains
 unresolved. No value may be invented.
+
+---
+
+# Owner-Decision Record — Dimension Allocation Gate
+
+**Status:** approved
+**Date:** 2026-09-26
+**Owner:** Anthony Grant
+
+## Standing of this record (dimension-allocation gate)
+
+This record adds six policy keys to the readiness gate and establishes a three-state policy
+mechanism. It resolves nothing. It makes already-missing work visible.
+
+It **does not supersede or modify any canonical Markdown file.** `PROJECT_GUARDRAILS.md`,
+`PROMPT_PHASE_0.md`, `JOB_CAPTURE_TEMPLATE.md`, `CONTEXT_UPDATE_PROTOCOL.md`,
+`CANONICAL_CANDIDATE_DOSSIER.md`, `CANONICAL_BADGR_BUSINESS_CONTEXT.md`, and
+`CANONICAL_CONFLICTS_AND_UNKNOWNS.md` are unchanged. `README.md` was separately corrected under
+approved canonical patch `D-11-README`; that patch is unrelated to this record.
+
+This record is the **active implementation authority** for the readiness gate. The earlier gate
+sections in this file are labelled superseded.
+
+## The gap this record records
+
+Nine weighted dimensions total 100 points. Two carry approved allocation rules: technology
+alignment (P-1, A-5, A-6, A-7) and, in part, compensation and seniority, whose point tables are
+approved (P-3, P-4) while their selection rules remain unresolved.
+
+Six dimensions carry an approved **weight** and no rule at all for turning facts into points:
+
+| Dimension | Points |
+|---|---|
+| role_family_relevance | 20 |
+| responsibility_and_project_evidence_alignment | 15 |
+| location_remote_relocation_compatibility | 8 |
+| employment_type_compatibility | 5 |
+| employer_listing_validation_quality | 4 |
+| growth_learning_relevance | 3 |
+
+That is **55 of the 100 points**, and none of it was tracked by any gate key. A total score was
+therefore further away than the previously listed five keys implied. `PROMPT_PHASE_0.md` calls
+these "suggested score weights"; a weight is not an allocation rule.
+
+## Approved policy states
+
+Every policy decision holds exactly one of three states, represented by the `PolicyStatus` enum:
+
+1. `UNRESOLVED` — no rule exists. The key appears in `unresolved_policy`, where the UNRESOLVED
+   sentinel is the only permitted value.
+2. `PROVISIONAL` — a rule exists and the owner approved it as a working default, knowing it will
+   be revisited. A provisional rule must be labelled provisional wherever its result is
+   displayed.
+3. `APPROVED` — the owner settled it.
+
+There is deliberately no state for a derived, inferred, or defaulted rule. A rule is
+owner-approved or it does not exist.
+
+## Approved gate-integrity rule
+
+A key is **not** resolved by changing its value in `unresolved_policy`. It is resolved by
+removing it from that block and from `REQUIRED_UNRESOLVED_POLICY_KEYS` together, and adding a
+typed policy block that carries its own status. Configuration validation rejects any value in
+`unresolved_policy` other than the UNRESOLVED sentinel, so a key cannot be silently released by
+writing "approved" or a typo over it.
+
+## Gate keys after the dimension-allocation decision
+
+These eleven keys gate assessment readiness. Structural configuration loading succeeds; full
+readiness validation fails and lists every key below, in this order.
+
+1. seniority_band_selection_precedence
+2. compensation_range_selection_rule
+3. critical_unknown_detection_rule
+4. score_rounding_rule
+5. report_and_cli_score_display_scope
+6. role_family_allocation_rule
+7. responsibility_evidence_allocation_rule
+8. location_remote_relocation_allocation_rule
+9. employment_type_allocation_rule
+10. growth_learning_allocation_rule
+11. employer_listing_validation_allocation_rule
+
+No deterministic assessment behaviour may be added or executed while any key above remains
+unresolved. No value may be invented.
+
+## Approved consequence for classification
+
+Two dimensions have no deterministic input at all. `responsibility_and_project_evidence_alignment`
+can be scored only from prose, and every deterministic proxy either double-counts technologies
+(E-2) or requires semantic matching, which A-6 forbids. `growth_learning_relevance` has no
+capture-template field whatsoever.
+
+Under rule C-2 an unevaluated dimension scores zero and stays in the denominator, so while those
+two are unevaluated the highest achievable total is **82 of 100**. The P-2 thresholds were set
+assuming all nine dimensions are evaluated, and `STRONG_MATCH` begins at 72.
+
+Therefore, while any dimension is unevaluated:
+no `MatchClassification` is produced or displayed.
+A partial total may be reported only as a count of evaluable points, stating the ceiling. Thresholds are re-derived once the missing dimensions carry rules, consistent with rule
+C-6, which requires 30 to 50 assessed listings before reconsidering them.

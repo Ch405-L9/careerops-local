@@ -21,6 +21,7 @@ from careerops.enums import (
     BlockerCode,
     EvidenceTier,
     MatchClassification,
+    PolicyStatus,
     Recommendation,
     RiskFlag,
     SalaryCompatibility,
@@ -230,23 +231,61 @@ def test_report_order_matches_the_decision_record(repo_root: Path, config_dir: P
 def test_unresolved_policy_keys_match_the_decision_record(
     repo_root: Path, config_dir: Path
 ) -> None:
-    """A-5..A-7 renamed the live gate section; the old label is now superseded."""
+    """The live gate section is renamed each time the gate changes; old labels are annotated."""
     section = _section(
-        _record(repo_root), "Remaining unresolved policy keys after A-5 through A-7"
+        _record(repo_root), "Gate keys after the dimension-allocation decision"
     )
     documented = tuple(NUMBERED.findall(section))
     assert documented == REQUIRED_UNRESOLVED_POLICY_KEYS
     assert documented == load_assessment_config(config_dir).unresolved_keys()
 
 
-def test_reduced_unresolved_key_section_lists_the_five_remaining_keys(
+def test_every_superseded_gate_section_is_annotated(repo_root: Path) -> None:
+    """A stale gate list may stand only with a blockquote pointing at the live one.
+
+    Two earlier sections list fewer keys than the active gate. Neither may read as current.
+    """
+    markdown = _record(repo_root)
+    for heading in (
+        "Unresolved policy keys",
+        "Remaining unresolved policy keys after A-5 through A-7",
+    ):
+        section = _section(markdown, heading)
+        assert "Superseded" in section or "superseded" in section, (
+            f"{heading!r} lists a stale gate without saying so"
+        )
+        assert "Gate keys after the dimension-allocation decision" in section
+
+
+def test_the_allocation_gate_record_states_its_standing(repo_root: Path) -> None:
+    markdown = _record(repo_root)
+    title = "# Owner-Decision Record — Dimension Allocation Gate"
+    assert markdown.count(title) == 1
+    record = markdown[markdown.index(title) :]
+    for required in (
+        "**Status:** approved",
+        "**Date:** 2026-09-26",
+        "**Owner:** Anthony Grant",
+        "does not supersede or modify any canonical Markdown file",
+        "It resolves nothing. It makes already-missing work visible.",
+        "55 of the 100 points",
+        "82 of 100",
+        "no `MatchClassification` is produced or displayed",
+    ):
+        assert required in record, f"the allocation-gate record is missing: {required!r}"
+
+
+def test_the_record_accounts_for_every_unruled_dimension(
     repo_root: Path, config_dir: Path
 ) -> None:
-    """The superseded P-1..P-6 gate section was reduced, so no stale eight-key list stands."""
-    section = _section(_record(repo_root), "Unresolved policy keys")
-    documented = tuple(NUMBERED.findall(section))
-    assert documented == REQUIRED_UNRESOLVED_POLICY_KEYS
-    assert documented == load_assessment_config(config_dir).unresolved_keys()
+    """The 55-point claim must equal the actual weights, not a remembered number."""
+    from careerops.config.schema import ALLOCATION_RULE_DIMENSIONS
+
+    weights = load_assessment_config(config_dir).scoring.weights
+    assert sum(weights[d] for d in ALLOCATION_RULE_DIMENSIONS.values()) == 55
+    markdown = _record(repo_root)
+    for dimension in ALLOCATION_RULE_DIMENSIONS.values():
+        assert dimension in markdown
 
 
 # ===================================================== technology policy parity (A-5..A-7)
@@ -267,7 +306,11 @@ def _a5_a7_record(repo_root: Path) -> str:
     """
     markdown = _record(repo_root)
     assert markdown.count(A5_A7_TITLE) == 1, "the A-5..A-7 record title must occur once"
-    return markdown[markdown.index(A5_A7_TITLE) :]
+    body = markdown[markdown.index(A5_A7_TITLE) :]
+    # Stop at the next top-level record. HEADING matches #{2,6} only, so _section cannot
+    # see an H1 and a slice must bound itself.
+    nxt = body.find("\n# ", len(A5_A7_TITLE))
+    return body if nxt == -1 else body[:nxt]
 
 
 def test_canonical_display_names_match_the_decision_record(
@@ -431,7 +474,9 @@ def test_record_introduces_no_new_risk_flag_or_blocker_code(repo_root: Path) -> 
         | {label.value for label in Recommendation}
         | {status.value for status in ValidationStatus}
         | {identifier for identifier, _ in APPROVED_CANONICAL_TECHNOLOGIES}
-        | {"CRON", "SSH", "UNRESOLVED"}
+        | {"CRON", "SSH"}
+        | {member.value for member in PolicyStatus}
+        | {"REQUIRED_UNRESOLVED_POLICY_KEYS"}
     )
     found = set(BACKTICKED_CONSTANT.findall(_a5_a7_record(repo_root)))
     assert found <= allowed, f"undeclared uppercase constants: {sorted(found - allowed)}"
